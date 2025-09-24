@@ -1,0 +1,145 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(210, 40%, 98%);
+  --foreground: hsl(210, 40%, 8%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(210, 40%, 8%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(210, 40%, 8%);
+  --primary: hsl(217, 91%, 60%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(210, 40%, 96%);
+  --secondary-foreground: hsl(215, 25%, 27%);
+  --muted: hsl(210, 40%, 96%);
+  --muted-foreground: hsl(215, 16%, 47%);
+  --accent: hsl(210, 40%, 96%);
+  --accent-foreground: hsl(215, 25%, 27%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --border: hsl(214, 32%, 91%);
+  --input: hsl(214, 32%, 91%);
+  --ring: hsl(217, 91%, 60%);
+  --chart-1: hsl(217, 91%, 60%);
+  --chart-2: hsl(159, 78%, 36%);
+  --chart-3: hsl(42, 93%, 56%);
+  --chart-4: hsl(147, 79%, 42%);
+  --chart-5: hsl(341, 75%, 51%);
+  --sidebar: hsl(0, 0%, 100%);
+  --sidebar-foreground: hsl(210, 40%, 8%);
+  --sidebar-primary: hsl(217, 91%, 60%);
+  --sidebar-primary-foreground: hsl(0, 0%, 100%);
+  --sidebar-accent: hsl(210, 40%, 96%);
+  --sidebar-accent-foreground: hsl(215, 25%, 27%);
+  --sidebar-border: hsl(214, 32%, 91%);
+  --sidebar-ring: hsl(217, 91%, 60%);
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: Menlo, monospace;
+  --radius: 0.5rem;
+  --shadow-2xs: 0px 1px 2px 0px hsl(0, 0%, 0%, 0.05);
+  --shadow-xs: 0px 1px 2px 0px hsl(0, 0%, 0%, 0.05), 0px 1px 3px 0px hsl(0, 0%, 0%, 0.1);
+  --shadow-sm: 0px 1px 2px 0px hsl(0, 0%, 0%, 0.05), 0px 2px 4px 0px hsl(0, 0%, 0%, 0.1);
+  --shadow: 0px 1px 3px 0px hsl(0, 0%, 0%, 0.1), 0px 4px 6px -2px hsl(0, 0%, 0%, 0.1);
+  --shadow-md: 0px 2px 4px -1px hsl(0, 0%, 0%, 0.1), 0px 4px 6px -1px hsl(0, 0%, 0%, 0.1);
+  --shadow-lg: 0px 4px 6px -2px hsl(0, 0%, 0%, 0.1), 0px 10px 15px -3px hsl(0, 0%, 0%, 0.1);
+  --shadow-xl: 0px 8px 10px -3px hsl(0, 0%, 0%, 0.1), 0px 20px 25px -5px hsl(0, 0%, 0%, 0.1);
+  --shadow-2xl: 0px 20px 25px -5px hsl(0, 0%, 0%, 0.25);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+}
+
+.dark {
+  --background: hsl(210, 40%, 3%);
+  --foreground: hsl(210, 40%, 92%);
+  --card: hsl(210, 40%, 8%);
+  --card-foreground: hsl(210, 40%, 92%);
+  --popover: hsl(210, 40%, 8%);
+  --popover-foreground: hsl(210, 40%, 92%);
+  --primary: hsl(217, 91%, 60%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(210, 40%, 12%);
+  --secondary-foreground: hsl(210, 40%, 80%);
+  --muted: hsl(210, 40%, 12%);
+  --muted-foreground: hsl(215, 16%, 57%);
+  --accent: hsl(210, 40%, 12%);
+  --accent-foreground: hsl(210, 40%, 80%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --border: hsl(210, 40%, 16%);
+  --input: hsl(210, 40%, 16%);
+  --ring: hsl(217, 91%, 60%);
+  --sidebar: hsl(210, 40%, 8%);
+  --sidebar-foreground: hsl(210, 40%, 92%);
+  --sidebar-primary: hsl(217, 91%, 60%);
+  --sidebar-primary-foreground: hsl(0, 0%, 100%);
+  --sidebar-accent: hsl(210, 40%, 12%);
+  --sidebar-accent-foreground: hsl(210, 40%, 80%);
+  --sidebar-border: hsl(210, 40%, 16%);
+  --sidebar-ring: hsl(217, 91%, 60%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+/* Bed status styles */
+.status-available {
+  @apply bg-green-100 text-green-800 border-green-200;
+}
+
+.status-occupied {
+  @apply bg-red-100 text-red-800 border-red-200;
+}
+
+.status-maintenance {
+  @apply bg-yellow-100 text-yellow-800 border-yellow-200;
+}
+
+.status-cleaning {
+  @apply bg-blue-100 text-blue-800 border-blue-200;
+}
+
+.dark .status-available {
+  @apply bg-green-900 text-green-200 border-green-700;
+}
+
+.dark .status-occupied {
+  @apply bg-red-900 text-red-200 border-red-700;
+}
+
+.dark .status-maintenance {
+  @apply bg-yellow-900 text-yellow-200 border-yellow-700;
+}
+
+.dark .status-cleaning {
+  @apply bg-blue-900 text-blue-200 border-blue-700;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--muted);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground);
+}
