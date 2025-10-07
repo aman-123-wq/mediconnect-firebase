@@ -1,12 +1,34 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Header from "@/components/layout/header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Heart, MapPin, Phone } from "lucide-react";
-import type { OrganDonor } from "@shared/schema";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger 
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Heart, MapPin, Phone, Plus } from "lucide-react";
+
+// Define the donor type
+interface OrganDonor {
+  id: string;
+  donorId: string;
+  bloodType: string;
+  organType: string;
+  status: 'available' | 'processing' | 'unavailable';
+  location?: { address: string };
+  lastUpdated?: string;
+  createdAt?: string;
+}
 
 const statusColors = {
   available: "bg-green-100 text-green-800",
@@ -14,20 +36,107 @@ const statusColors = {
   unavailable: "bg-red-100 text-red-800",
 };
 
+// Base URL for API - CHANGE THIS IF YOUR SERVER RUNS ON DIFFERENT PORT
+const API_BASE = 'http://localhost:3000';
+
 export default function Donors() {
   const [bloodTypeFilter, setBloodTypeFilter] = useState<string>("all");
   const [organTypeFilter, setOrganTypeFilter] = useState<string>("all");
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
 
+  // Fetch donors
   const { data: donors = [], isLoading } = useQuery<OrganDonor[]>({
-    queryKey: ["/api/organ-donors", { bloodType: bloodTypeFilter === "all" ? undefined : bloodTypeFilter, organType: organTypeFilter === "all" ? undefined : organTypeFilter }],
-    queryFn: ({ queryKey }) => {
-      const [url, params] = queryKey;
+    queryKey: ["donors", { bloodType: bloodTypeFilter, organType: organTypeFilter }],
+    queryFn: async ({ queryKey }) => {
+      const [_, params] = queryKey;
       const searchParams = new URLSearchParams();
-      if ((params as any).bloodType) searchParams.set('bloodType', (params as any).bloodType);
-      if ((params as any).organType) searchParams.set('organType', (params as any).organType);
-      return fetch(`${url}?${searchParams}`).then(res => res.json());
+      
+      if ((params as any).bloodType && (params as any).bloodType !== "all") {
+        searchParams.set('bloodType', (params as any).bloodType);
+      }
+      if ((params as any).organType && (params as any).organType !== "all") {
+        searchParams.set('organType', (params as any).organType);
+      }
+      
+      const queryString = searchParams.toString();
+      const url = queryString ? `${API_BASE}/api/donors?${queryString}` : `${API_BASE}/api/donors`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch donors');
+      }
+      
+      return response.json();
     },
   });
+
+  // Add donor mutation
+  const addDonorMutation = useMutation({
+    mutationFn: async (newDonor: Omit<OrganDonor, 'id'>) => {
+      const response = await fetch(`${API_BASE}/api/donors`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newDonor),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to add donor');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['donors'] });
+      setIsAddDialogOpen(false);
+      setNewDonor(initialDonorState);
+    },
+    onError: (error) => {
+      console.error('Error adding donor:', error);
+      alert('Failed to add donor. Please try again.');
+    }
+  });
+
+  const initialDonorState = {
+    donorId: '',
+    bloodType: '',
+    organType: '',
+    status: 'available' as 'available' | 'processing' | 'unavailable',
+    location: { address: '' }
+  };
+
+  const [newDonor, setNewDonor] = useState(initialDonorState);
+
+  const handleAddDonor = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newDonor.bloodType || !newDonor.organType) {
+      alert('Blood Type and Organ Type are required');
+      return;
+    }
+
+    const donorData = {
+      ...newDonor,
+      donorId: newDonor.donorId || `DONOR-${Date.now()}`,
+    };
+
+    addDonorMutation.mutate(donorData);
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setNewDonor(prev => {
+      if (field === 'location.address') {
+        return {
+          ...prev,
+          location: { ...prev.location, address: value }
+        };
+      }
+      return { ...prev, [field]: value };
+    });
+  };
 
   const availableDonors = donors.filter(d => d.status === 'available');
 
@@ -47,8 +156,113 @@ export default function Donors() {
           </div>
           
           <div className="flex space-x-4">
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Donor
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Add New Donor</DialogTitle>
+                  <DialogDescription>
+                    Enter the donor information below. Click save when you're done.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleAddDonor}>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="donorId" className="text-right">
+                        Donor ID
+                      </Label>
+                      <Input
+                        id="donorId"
+                        value={newDonor.donorId}
+                        onChange={(e) => handleInputChange('donorId', e.target.value)}
+                        className="col-span-3"
+                        placeholder="DONOR-001"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="bloodType" className="text-right">
+                        Blood Type
+                      </Label>
+                      <Select value={newDonor.bloodType} onValueChange={(value) => handleInputChange('bloodType', value)}>
+                        <SelectTrigger className="col-span-3">
+                          <SelectValue placeholder="Select blood type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="A+">A+</SelectItem>
+                          <SelectItem value="A-">A-</SelectItem>
+                          <SelectItem value="B+">B+</SelectItem>
+                          <SelectItem value="B-">B-</SelectItem>
+                          <SelectItem value="AB+">AB+</SelectItem>
+                          <SelectItem value="AB-">AB-</SelectItem>
+                          <SelectItem value="O+">O+</SelectItem>
+                          <SelectItem value="O-">O-</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="organType" className="text-right">
+                        Organ Type
+                      </Label>
+                      <Select value={newDonor.organType} onValueChange={(value) => handleInputChange('organType', value)}>
+                        <SelectTrigger className="col-span-3">
+                          <SelectValue placeholder="Select organ type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="kidney">Kidney</SelectItem>
+                          <SelectItem value="liver">Liver</SelectItem>
+                          <SelectItem value="heart">Heart</SelectItem>
+                          <SelectItem value="lung">Lung</SelectItem>
+                          <SelectItem value="cornea">Cornea</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="status" className="text-right">
+                        Status
+                      </Label>
+                      <Select value={newDonor.status} onValueChange={(value: 'available' | 'processing' | 'unavailable') => handleInputChange('status', value)}>
+                        <SelectTrigger className="col-span-3">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="available">Available</SelectItem>
+                          <SelectItem value="processing">Processing</SelectItem>
+                          <SelectItem value="unavailable">Unavailable</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="address" className="text-right">
+                        Address
+                      </Label>
+                      <Input
+                        id="address"
+                        value={newDonor.location.address}
+                        onChange={(e) => handleInputChange('location.address', e.target.value)}
+                        className="col-span-3"
+                        placeholder="Enter donor address"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button 
+                      type="submit" 
+                      disabled={addDonorMutation.isPending}
+                    >
+                      {addDonorMutation.isPending ? "Adding..." : "Add Donor"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+
             <Select value={bloodTypeFilter} onValueChange={setBloodTypeFilter}>
-              <SelectTrigger className="w-32" data-testid="filter-blood-type">
+              <SelectTrigger className="w-32">
                 <SelectValue placeholder="Blood Type" />
               </SelectTrigger>
               <SelectContent>
@@ -65,7 +279,7 @@ export default function Donors() {
             </Select>
             
             <Select value={organTypeFilter} onValueChange={setOrganTypeFilter}>
-              <SelectTrigger className="w-32" data-testid="filter-organ-type">
+              <SelectTrigger className="w-32">
                 <SelectValue placeholder="Organ Type" />
               </SelectTrigger>
               <SelectContent>
@@ -105,7 +319,7 @@ export default function Donors() {
                         <Heart className="w-6 h-6 text-red-600" />
                       </div>
                       <div>
-                        <p className="font-medium text-foreground" data-testid={`donor-id-${donor.donorId}`}>
+                        <p className="font-medium text-foreground">
                           {donor.donorId}
                         </p>
                         <p className="text-sm text-muted-foreground">
@@ -113,18 +327,15 @@ export default function Donors() {
                         </p>
                       </div>
                     </div>
-                    <Badge className={statusColors[donor.status as keyof typeof statusColors]}>
+                    <Badge className={statusColors[donor.status]}>
                       {donor.status}
                     </Badge>
                   </div>
                   
-                  {donor.location && (
+                  {donor.location && donor.location.address && (
                     <div className="flex items-center space-x-1 text-sm text-muted-foreground mb-3">
                       <MapPin className="w-4 h-4" />
-                      <span>
-                        {donor.location && typeof donor.location === 'object' && 'address' in donor.location ? 
-                          (donor.location as any).address : 'Location available'}
-                      </span>
+                      <span>{donor.location.address}</span>
                     </div>
                   )}
                   
@@ -138,12 +349,11 @@ export default function Donors() {
                       variant={donor.status === 'available' ? 'default' : 'secondary'}
                       className="flex-1"
                       disabled={donor.status !== 'available'}
-                      data-testid={`button-contact-${donor.donorId}`}
                     >
                       <Phone className="w-4 h-4 mr-1" />
                       Contact
                     </Button>
-                    <Button size="sm" variant="outline" data-testid={`button-details-${donor.donorId}`}>
+                    <Button size="sm" variant="outline">
                       Details
                     </Button>
                   </div>
@@ -159,7 +369,10 @@ export default function Donors() {
               <Heart className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">No donors found</h3>
               <p className="text-muted-foreground">
-                No organ donors match your current filters. Try adjusting your search criteria.
+                {bloodTypeFilter !== "all" || organTypeFilter !== "all" 
+                  ? "No organ donors match your current filters. Try adjusting your search criteria."
+                  : "No organ donors are currently registered in the system."
+                }
               </p>
             </CardContent>
           </Card>

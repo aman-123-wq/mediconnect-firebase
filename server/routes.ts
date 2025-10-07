@@ -1,305 +1,244 @@
-import type { Express } from "express";
-import { createServer, type Server } from "http";
-import { WebSocketServer, WebSocket } from "ws";
-import { storage } from "./storage";
-import { processMessage, analyzeSymptoms } from "./openai";
-import { insertAppointmentSchema, insertPatientSchema, insertOrganDonorSchema } from "@shared/schema";
+import express from 'express';
+import { auth, db } from './firebase';
+import { firebaseDB, FirebaseHelpers } from './db';
 
-export async function registerRoutes(app: Express): Promise<Server> {
-  const httpServer = createServer(app);
+const router = express.Router();
 
-  // WebSocket server for real-time updates
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-  
-  const connectedClients = new Set<WebSocket>();
-  
-  wss.on('connection', (ws) => {
-    connectedClients.add(ws);
+// Mock chatbot responses
+const mockChatbot = {
+  getResponse: (userMessage: string) => {
+    const responses = [
+      `I understand: "${userMessage}". How can I help with your medical needs?`,
+      `Thanks for your message about ${userMessage}. I'm a healthcare assistant bot.`,
+      `I see you're discussing ${userMessage}. As a medical chatbot, I can help with appointment scheduling, patient info, or general health questions.`,
+      `Regarding "${userMessage}" - I can assist with patient records, doctor appointments, or hospital services.`,
+      `I'm MediConnect's mock chatbot. You said: "${userMessage}" - how can I assist with healthcare services today?`
+    ];
     
-    ws.on('close', () => {
-      connectedClients.delete(ws);
-    });
-  });
+    return {
+      reply: responses[Math.floor(Math.random() * responses.length)],
+      isMock: true,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
 
-  // Broadcast real-time updates
-  function broadcastUpdate(type: string, data: any) {
-    const message = JSON.stringify({ type, data });
-    connectedClients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(message);
-      }
-    });
+// Authentication middleware
+export const authenticateToken = async (req: any, res: any, next: any) => {
+  const token = req.headers.authorization?.split('Bearer ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ error: 'No token provided' });
   }
 
-  // Dashboard API
-  app.get('/api/dashboard/stats', async (req, res) => {
-    try {
-      const availableBeds = await storage.getBedsByStatus('available');
-      const todayAppointments = await storage.getAppointmentsByDate(new Date());
-      const activeDonors = await storage.getAllOrganDonors();
-      const occupiedBeds = await storage.getBedsByStatus('occupied');
-      const emergencyCases = 0; // Will be calculated with proper bed-ward relationship
+  try {
+    const decodedToken = await auth.verifyIdToken(token);
+    req.user = decodedToken;
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+};
 
-      res.json({
-        availableBeds: availableBeds.length,
-        todayAppointments: todayAppointments.length,
-        activeDonors: activeDonors.filter(d => d.status === 'available').length,
-        emergencyCases: emergencyCases || 0,
-      });
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
-      res.status(500).json({ message: 'Failed to fetch dashboard stats' });
+// Mock Chatbot route - NO authentication required for demo
+router.post('/api/chat', async (req, res) => {
+  try {
+    const { message } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
     }
-  });
-
-  // Beds API
-  app.get('/api/beds', async (req, res) => {
-    try {
-      const beds = await storage.getBedsWithWardInfo();
-      res.json(beds);
-    } catch (error) {
-      console.error('Error fetching beds:', error);
-      res.status(500).json({ message: 'Failed to fetch beds' });
-    }
-  });
-
-  app.get('/api/beds/by-ward/:wardId', async (req, res) => {
-    try {
-      const beds = await storage.getBedsByWard(req.params.wardId);
-      res.json(beds);
-    } catch (error) {
-      console.error('Error fetching beds by ward:', error);
-      res.status(500).json({ message: 'Failed to fetch beds' });
-    }
-  });
-
-  app.patch('/api/beds/:id/status', async (req, res) => {
-    try {
-      const { status, patientId } = req.body;
-      await storage.updateBedStatus(req.params.id, status, patientId);
-      
-      // Broadcast real-time update
-      const updatedBed = await storage.getBed(req.params.id);
-      broadcastUpdate('bedStatusUpdate', updatedBed);
-      
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Error updating bed status:', error);
-      res.status(500).json({ message: 'Failed to update bed status' });
-    }
-  });
-
-  // Wards API
-  app.get('/api/wards', async (req, res) => {
-    try {
-      const wards = await storage.getAllWards();
-      res.json(wards);
-    } catch (error) {
-      console.error('Error fetching wards:', error);
-      res.status(500).json({ message: 'Failed to fetch wards' });
-    }
-  });
-
-  // Appointments API
-  app.get('/api/appointments', async (req, res) => {
-    try {
-      const appointments = await storage.getAppointmentsWithDetails();
-      res.json(appointments);
-    } catch (error) {
-      console.error('Error fetching appointments:', error);
-      res.status(500).json({ message: 'Failed to fetch appointments' });
-    }
-  });
-
-  app.get('/api/appointments/today', async (req, res) => {
-    try {
-      const appointments = await storage.getAppointmentsByDate(new Date());
-      res.json(appointments);
-    } catch (error) {
-      console.error('Error fetching today\'s appointments:', error);
-      res.status(500).json({ message: 'Failed to fetch appointments' });
-    }
-  });
-
-  app.post('/api/appointments', async (req, res) => {
-    try {
-      const validatedData = insertAppointmentSchema.parse(req.body);
-      const appointment = await storage.createAppointment(validatedData);
-      
-      // Broadcast real-time update
-      broadcastUpdate('newAppointment', appointment);
-      
-      res.status(201).json(appointment);
-    } catch (error) {
-      console.error('Error creating appointment:', error);
-      res.status(400).json({ message: 'Failed to create appointment' });
-    }
-  });
-
-  app.patch('/api/appointments/:id/status', async (req, res) => {
-    try {
-      const { status } = req.body;
-      await storage.updateAppointmentStatus(req.params.id, status);
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Error updating appointment status:', error);
-      res.status(500).json({ message: 'Failed to update appointment status' });
-    }
-  });
-
-  // Doctors API
-  app.get('/api/doctors', async (req, res) => {
-    try {
-      const doctors = await storage.getAllDoctors();
-      res.json(doctors);
-    } catch (error) {
-      console.error('Error fetching doctors:', error);
-      res.status(500).json({ message: 'Failed to fetch doctors' });
-    }
-  });
-
-  app.get('/api/doctors/department/:department', async (req, res) => {
-    try {
-      const doctors = await storage.getDoctorsByDepartment(req.params.department);
-      res.json(doctors);
-    } catch (error) {
-      console.error('Error fetching doctors by department:', error);
-      res.status(500).json({ message: 'Failed to fetch doctors' });
-    }
-  });
-
-  // Patients API
-  app.get('/api/patients', async (req, res) => {
-    try {
-      const patients = await storage.getAllPatients();
-      res.json(patients);
-    } catch (error) {
-      console.error('Error fetching patients:', error);
-      res.status(500).json({ message: 'Failed to fetch patients' });
-    }
-  });
-
-  app.post('/api/patients', async (req, res) => {
-    try {
-      const validatedData = insertPatientSchema.parse(req.body);
-      const patient = await storage.createPatient(validatedData);
-      res.status(201).json(patient);
-    } catch (error) {
-      console.error('Error creating patient:', error);
-      res.status(400).json({ message: 'Failed to create patient' });
-    }
-  });
-
-  // Organ Donors API
-  app.get('/api/organ-donors', async (req, res) => {
-    try {
-      const { bloodType, organType } = req.query;
-      const donors = await storage.searchOrganDonors(
-        bloodType as string, 
-        organType as string
-      );
-      res.json(donors);
-    } catch (error) {
-      console.error('Error fetching organ donors:', error);
-      res.status(500).json({ message: 'Failed to fetch organ donors' });
-    }
-  });
-
-  app.post('/api/organ-donors', async (req, res) => {
-    try {
-      const validatedData = insertOrganDonorSchema.parse(req.body);
-      const donor = await storage.createOrganDonor(validatedData);
-      
-      // Broadcast real-time update
-      broadcastUpdate('newDonor', donor);
-      
-      res.status(201).json(donor);
-    } catch (error) {
-      console.error('Error creating organ donor:', error);
-      res.status(400).json({ message: 'Failed to create organ donor' });
-    }
-  });
-
-  // Alerts API
-  app.get('/api/alerts', async (req, res) => {
-    try {
-      const alerts = await storage.getAllAlerts();
-      res.json(alerts);
-    } catch (error) {
-      console.error('Error fetching alerts:', error);
-      res.status(500).json({ message: 'Failed to fetch alerts' });
-    }
-  });
-
-  app.get('/api/alerts/unread', async (req, res) => {
-    try {
-      const alerts = await storage.getUnreadAlerts();
-      res.json(alerts);
-    } catch (error) {
-      console.error('Error fetching unread alerts:', error);
-      res.status(500).json({ message: 'Failed to fetch unread alerts' });
-    }
-  });
-
-  app.patch('/api/alerts/:id/read', async (req, res) => {
-    try {
-      await storage.markAlertAsRead(req.params.id);
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Error marking alert as read:', error);
-      res.status(500).json({ message: 'Failed to mark alert as read' });
-    }
-  });
-
-  // Chatbot API
-  app.post('/api/chatbot/message', async (req, res) => {
-    try {
-      const { message, sessionId } = req.body;
-      
-      // Save user message
-      await storage.createChatMessage({
-        sessionId,
-        message,
-        isUser: true,
-      });
-      
-      // Process with AI
-      const response = await processMessage(message);
-      
-      // Save AI response
-      await storage.createChatMessage({
-        sessionId,
-        message: response.message,
-        isUser: false,
-      });
-      
+    
+    // Simulate processing delay
+    setTimeout(() => {
+      const response = mockChatbot.getResponse(message);
       res.json(response);
-    } catch (error) {
-      console.error('Error processing chatbot message:', error);
-      res.status(500).json({ message: 'Failed to process message' });
-    }
-  });
+    }, 800); // 0.8 second delay for realism
+  } catch (error) {
+    res.status(500).json({ error: 'Chatbot service unavailable' });
+  }
+});
 
-  app.get('/api/chatbot/messages/:sessionId', async (req, res) => {
-    try {
-      const messages = await storage.getChatMessages(req.params.sessionId);
-      res.json(messages);
-    } catch (error) {
-      console.error('Error fetching chat messages:', error);
-      res.status(500).json({ message: 'Failed to fetch messages' });
-    }
-  });
+// Patient routes
+router.get('/api/patients',async (req, res) => {
+  try {
+    const patients = await FirebaseHelpers.getAll(firebaseDB.patients);
+    res.json(patients);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch patients' });
+  }
+});
 
-  app.post('/api/chatbot/analyze-symptoms', async (req, res) => {
-    try {
-      const { symptoms } = req.body;
-      const analysis = await analyzeSymptoms(symptoms);
-      res.json(analysis);
-    } catch (error) {
-      console.error('Error analyzing symptoms:', error);
-      res.status(500).json({ message: 'Failed to analyze symptoms' });
-    }
-  });
+router.post('/api/patients', async (req, res) => {
+  try {
+    const patient = await FirebaseHelpers.create(firebaseDB.patients, req.body);
+    res.json(patient);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create patient' });
+  }
+});
 
-  return httpServer;
-}
+// Doctor routes
+router.get('/api/doctors', async (req, res) => {
+  try {
+    const doctors = await FirebaseHelpers.getAll(firebaseDB.doctors);
+    res.json(doctors);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch doctors' });
+  }
+});
+
+router.post('/api/doctors', async (req, res) => {
+  try {
+    const doctor = await FirebaseHelpers.create(firebaseDB.doctors, req.body);
+    res.json(doctor);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create doctor' });
+  }
+});
+
+// Appointment routes
+router.get('/api/appointments', async (req, res) => {
+  try {
+    const appointments = await FirebaseHelpers.getAll(firebaseDB.appointments);
+    res.json(appointments);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch appointments' });
+  }
+});
+
+router.post('/api/appointments', async (req, res) => {
+  try {
+    const appointment = await FirebaseHelpers.create(firebaseDB.appointments, req.body);
+    res.json(appointment);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create appointment' });
+  }
+});
+
+// Bed routes
+router.get('/api/beds', async (req, res) => {
+  try {
+    const beds = await FirebaseHelpers.getAll(firebaseDB.beds);
+    res.json(beds);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch beds' });
+  }
+});
+
+router.post('/api/beds',async (req, res) => {
+  try {
+    const bed = await FirebaseHelpers.create(firebaseDB.beds, req.body);
+    res.json(bed);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create bed' });
+  }
+});
+
+// Add this PUT route for updating beds
+router.put('/api/beds/:id',async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    const updatedBed = await FirebaseHelpers.update(firebaseDB.beds, id, updateData);
+    res.json(updatedBed);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update bed' });
+  }
+});
+
+// Donor routes - FIXED VERSION
+router.get('/api/donors',async (req, res) => {
+  try {
+    const { bloodType, organType } = req.query;
+    let donors = await FirebaseHelpers.getAll(firebaseDB.donors);
+    
+    // Apply filters if provided
+    if (bloodType && bloodType !== 'all') {
+      donors = donors.filter(donor => donor.bloodType === bloodType);
+    }
+    if (organType && organType !== 'all') {
+      donors = donors.filter(donor => donor.organType === organType);
+    }
+    
+    res.json(donors);
+  } catch (error) {
+    console.error('Error fetching donors:', error);
+    res.status(500).json({ error: 'Failed to fetch donors' });
+  }
+});
+
+router.post('/api/donors', async (req, res) => {
+  try {
+    console.log('Received donor data:', req.body);
+    
+    // Add timestamp and ensure required fields
+    const donorData = {
+      ...req.body,
+      createdAt: new Date().toISOString(),
+      lastUpdated: new Date().toISOString()
+    };
+
+    // Validate required fields
+    if (!donorData.donorId || !donorData.bloodType || !donorData.organType) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: donorId, bloodType, and organType are required' 
+      });
+    }
+
+    const donor = await FirebaseHelpers.create(firebaseDB.donors, donorData);
+    console.log('Donor created successfully:', donor);
+    
+    res.status(201).json(donor);
+  } catch (error) {
+    console.error('Error creating donor:', error);
+    res.status(500).json({ error: 'Failed to create donor: ' + error.message });
+  }
+});
+
+// Dashboard stats route
+router.get('/api/dashboard/stats', async (req, res) => {
+  try {
+    // Get all data for dashboard statistics
+    const [patients, doctors, appointments, beds, donors] = await Promise.all([
+      FirebaseHelpers.getAll(firebaseDB.patients),
+      FirebaseHelpers.getAll(firebaseDB.doctors),
+      FirebaseHelpers.getAll(firebaseDB.appointments),
+      FirebaseHelpers.getAll(firebaseDB.beds),
+      FirebaseHelpers.getAll(firebaseDB.donors)
+    ]);
+
+    // Calculate statistics
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const todayAppointments = appointments.filter(apt => {
+      const aptDate = new Date(apt.appointmentDate);
+      return aptDate.toDateString() === today.toDateString();
+    });
+
+    const availableBeds = beds.filter(bed => bed.status === 'available');
+    const occupiedBeds = beds.filter(bed => bed.status === 'occupied');
+    const availableDonors = donors.filter(donor => donor.status === 'available');
+
+    const stats = {
+      totalPatients: patients.length,
+      totalDoctors: doctors.length,
+      totalAppointments: appointments.length,
+      todayAppointments: todayAppointments.length,
+      totalBeds: beds.length,
+      availableBeds: availableBeds.length,
+      occupiedBeds: occupiedBeds.length,
+      occupancyRate: beds.length > 0 ? Math.round((occupiedBeds.length / beds.length) * 100) : 0,
+      totalDonors: donors.length,
+      availableDonors: availableDonors.length
+    };
+
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch dashboard statistics' });
+  }
+});
+
+export default router;

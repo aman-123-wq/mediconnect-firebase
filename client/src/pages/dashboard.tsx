@@ -5,7 +5,6 @@ import BedAvailability from "@/components/dashboard/bed-availability";
 import RecentAlerts from "@/components/dashboard/recent-alerts";
 import TodaysAppointments from "@/components/dashboard/todays-appointments";
 import DonorRegistry from "@/components/dashboard/donor-registry";
-import ChatbotFloat from "@/components/chatbot/chatbot-float";
 import { useWebSocket } from "@/hooks/use-websocket";
 
 export default function Dashboard() {
@@ -50,8 +49,6 @@ export default function Dashboard() {
           <DonorRegistry />
         </div>
       </div>
-      
-      <ChatbotFloat />
     </div>
   );
 }

@@ -12,19 +12,60 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { X } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
-import { insertAppointmentSchema } from "@shared/schema";
-import type { Doctor, Patient } from "@shared/schema";
+
+// Firebase-compatible interfaces (replace the old schema imports)
+interface Patient {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phoneNumber?: string;
+  dateOfBirth?: string;
+  bloodType?: string;
+  address?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  medicalHistory?: string;
+  createdAt?: string;
+}
+
+interface Doctor {
+  id: string;
+  userId: string;
+  specialization: string;
+  department: string;
+  licenseNumber: string;
+  phoneNumber?: string;
+  available?: boolean;
+  workingHours?: any;
+  createdAt?: string;
+}
+
+interface Appointment {
+  id: string;
+  patientId: string;
+  doctorId: string;
+  appointmentDate: string;
+  duration?: number;
+  status: 'scheduled' | 'confirmed' | 'waiting' | 'completed' | 'cancelled';
+  reason?: string;
+  notes?: string;
+  createdAt?: string;
+}
 
 interface AppointmentBookingModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const bookingFormSchema = insertAppointmentSchema.extend({
+// Replace the old insertAppointmentSchema with a custom Zod schema
+const bookingFormSchema = z.object({
   patientName: z.string().min(1, "Patient name is required"),
   department: z.string().min(1, "Department is required"),
+  doctorId: z.string().min(1, "Doctor is required"),
   date: z.string().min(1, "Date is required"),
   time: z.string().min(1, "Time is required"),
+  reason: z.string().optional(),
 });
 
 type BookingFormData = z.infer<typeof bookingFormSchema>;

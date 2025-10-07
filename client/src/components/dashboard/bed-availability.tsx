@@ -9,7 +9,7 @@ import { useState } from "react";
 import type { Bed, Ward } from "@shared/schema";
 
 interface BedWithWard extends Bed {
-  ward: Ward;
+  ward?: Ward; // Make ward optional
 }
 
 const statusColors = {
@@ -29,7 +29,7 @@ export default function BedAvailability() {
 
   const updateBedStatusMutation = useMutation({
     mutationFn: async ({ bedId, status, patientId }: { bedId: string; status: string; patientId?: string }) => {
-      await apiRequest("PATCH", `/api/beds/${bedId}/status`, { status, patientId });
+      await apiRequest("PUT", `/api/beds/${bedId}`, { status, patientId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/beds"] });
@@ -37,18 +37,20 @@ export default function BedAvailability() {
       toast({ title: "Success", description: "Bed status updated successfully" });
       setSelectedBed(null);
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ 
         title: "Error", 
-        description: error.message,
+        description: error.message || "Failed to update bed status",
         variant: "destructive" 
       });
     },
   });
 
-  // Group beds by ward
+  // FIXED: Safe grouping with fallback for missing ward data
   const bedsByWard = beds.reduce((acc, bed) => {
-    const wardName = bed.ward.name;
+    // Use safe access with fallback to department or default ward name
+    const wardName = bed.ward?.name || bed.department || 'General Ward';
+    
     if (!acc[wardName]) {
       acc[wardName] = [];
     }
@@ -112,7 +114,7 @@ export default function BedAvailability() {
                           data-testid={`bed-${bed.bedNumber}`}
                         >
                           <span className="text-xs font-medium">
-                            {bed.bedNumber.replace(/^[A-Z]/, '')}
+                            {typeof bed.bedNumber === 'number' ? bed.bedNumber : bed.bedNumber?.replace(/^[A-Z]/, '')}
                           </span>
                         </div>
                       </div>
@@ -146,7 +148,8 @@ export default function BedAvailability() {
           <Card className="w-full max-w-md mx-4">
             <CardHeader>
               <CardTitle>
-                {selectedBed.ward.name} - Bed {selectedBed.bedNumber}
+                {/* FIXED: Safe access for ward name */}
+                {selectedBed.ward?.name || selectedBed.department || 'General Ward'} - Bed {selectedBed.bedNumber}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">

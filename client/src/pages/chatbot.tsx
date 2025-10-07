@@ -1,31 +1,65 @@
 import { useState, useRef, useEffect } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Header from "@/components/layout/header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bot, User, Send, Calendar, Bed, Users, AlertTriangle } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { Bot, User, Send, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import type { ChatMessage } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+
+interface ChatMessage {
+  id: string;
+  message: string;
+  isUser: boolean;
+  timestamp?: string;
+}
 
 interface ChatbotResponse {
   message: string;
-  action?: string;
-  data?: any;
 }
 
 export default function ChatbotPage() {
   const [sessionId] = useState(() => `session-${Date.now()}`);
   const [inputMessage, setInputMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
-  const { data: messages = [] } = useQuery<ChatMessage[]>({
+  // Fetch messages from Firebase
+  const { data: messages = [], isLoading: messagesLoading } = useQuery<ChatMessage[]>({
     queryKey: ["/api/chatbot/messages", sessionId],
   });
 
+  // Store message in Firebase mutation
+  const storeMessageMutation = useMutation({
+    mutationFn: async (messageData: { message: string; isUser: boolean; timestamp: string }) => {
+      return apiRequest("POST", "/api/chatbot/store-message", {
+        sessionId,
+        ...messageData
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/chatbot/messages", sessionId] });
+    }
+  });
+
+  // Clear chat history mutation
+  const clearChatMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("DELETE", `/api/chatbot/messages/${sessionId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/chatbot/messages", sessionId] });
+      toast({
+        title: "Success",
+        description: "Chat history cleared!",
+      });
+    }
+  });
+
+  // Send message to chatbot mutation
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string): Promise<ChatbotResponse> => {
       const response = await apiRequest("POST", "/api/chatbot/message", {
@@ -34,11 +68,20 @@ export default function ChatbotPage() {
       });
       return response.json();
     },
-    onSuccess: (response) => {
-      // Handle special actions
-      if (response.action) {
-        handleChatbotAction(response.action, response.data);
-      }
+    onSuccess: async (response, sentMessage) => {
+      // Store user message in Firebase
+      await storeMessageMutation.mutateAsync({
+        message: sentMessage,
+        isUser: true,
+        timestamp: new Date().toISOString()
+      });
+
+      // Store bot response in Firebase
+      await storeMessageMutation.mutateAsync({
+        message: response.message,
+        isUser: false,
+        timestamp: new Date().toISOString()
+      });
     },
     onError: (error) => {
       toast({
@@ -49,31 +92,19 @@ export default function ChatbotPage() {
     },
   });
 
-  const handleChatbotAction = (action: string, data: any) => {
-    switch (action) {
-      case 'book_appointment':
-        toast({
-          title: "Appointment Booking",
-          description: "Redirecting to appointment booking...",
-        });
-        break;
-      case 'check_beds':
-        toast({
-          title: "Bed Availability",
-          description: "Checking current bed availability...",
-        });
-        break;
-      case 'emergency':
-        toast({
-          title: "Emergency Protocol",
-          description: "Initiating emergency assistance protocol...",
-          variant: "destructive",
-        });
-        break;
-      default:
-        break;
+  // Send welcome message when first loading
+  useEffect(() => {
+    if (messages.length === 0 && !messagesLoading) {
+      const welcomeMessage = "Hello! I am MediCare Medical Assistant. I can help you with:\n• Disease symptoms analysis\n• Medical condition information\n• Health advice and guidance\n• Medication questions\nPlease describe your symptoms or health concerns.";
+      
+      // Store welcome message in Firebase
+      storeMessageMutation.mutate({
+        message: welcomeMessage,
+        isUser: false,
+        timestamp: new Date().toISOString()
+      });
     }
-  };
+  }, [messages.length, messagesLoading]);
 
   const sendMessage = () => {
     if (!inputMessage.trim()) return;
@@ -89,82 +120,101 @@ export default function ChatbotPage() {
     }
   };
 
-  const quickActions = [
-    { label: "Book Appointment", icon: Calendar, action: "I want to book an appointment" },
-    { label: "Check Beds", icon: Bed, action: "Show me available beds" },
-    { label: "Find Doctor", icon: Users, action: "I need to find a doctor" },
-    { label: "Emergency", icon: AlertTriangle, action: "This is an emergency" },
-  ];
+  const clearChat = () => {
+    clearChatMutation.mutate();
+  };
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Send welcome message on first load
-  useEffect(() => {
-    if (messages.length === 0) {
-      sendMessageMutation.mutate("Hello");
-    }
-  }, []);
-
   return (
     <div className="min-h-screen bg-background">
-      <Header title="AI Assistant" subtitle="Get help with hospital services 24/7" />
+      <Header title="Medical AI Assistant" subtitle="Get medical advice and symptom analysis" />
       
       <div className="p-6">
+        {/* SUCCESS BANNER */}
+        <div style={{ 
+          background: 'green', 
+          color: 'white', 
+          padding: '10px', 
+          marginBottom: '20px',
+          fontSize: '18px',
+          fontWeight: 'bold',
+          borderRadius: '8px'
+        }}>
+          ✅ MEDICAL AI ASSISTANT WORKING: {messages.length} MESSAGES
+        </div>
+
+        <div className="flex items-center gap-4 mb-4">
+          <Badge className="bg-blue-500 text-white">
+            Medical Consultations: {messages.length}
+          </Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={clearChat}
+            disabled={clearChatMutation.isPending || messages.length === 0}
+            className="flex items-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            Clear Chat
+          </Button>
+        </div>
+
         <div className="max-w-4xl mx-auto">
-          <Card className="h-[calc(100vh-200px)] flex flex-col">
-            <CardHeader className="flex-shrink-0">
-              <CardTitle className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                  <Bot className="w-5 h-5 text-primary-foreground" />
-                </div>
-                <span>MediCare Assistant</span>
-                <Badge className="bg-green-100 text-green-800">Online</Badge>
-              </CardTitle>
-            </CardHeader>
-            
+          <Card className="h-[calc(100vh-200px)] flex flex-col border-2 border-green-500">
             <CardContent className="flex-1 flex flex-col p-0">
               {/* Messages Area */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div className={`flex items-start space-x-2 max-w-xs lg:max-w-md`}>
-                      {!message.isUser && (
-                        <Avatar className="w-8 h-8">
-                          <AvatarFallback className="bg-primary text-primary-foreground">
-                            <Bot className="w-4 h-4" />
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                      
-                      <div
-                        className={`rounded-lg p-3 ${
-                          message.isUser
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        <p className="text-sm whitespace-pre-wrap">{message.message}</p>
-                        <div className="text-xs opacity-70 mt-1">
-                          {message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : ''}
-                        </div>
-                      </div>
-                      
-                      {message.isUser && (
-                        <Avatar className="w-8 h-8">
-                          <AvatarFallback>
-                            <User className="w-4 h-4" />
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                    </div>
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {messagesLoading ? (
+                  <div className="flex justify-center items-center h-20">
+                    <div className="text-muted-foreground">Loading messages...</div>
                   </div>
-                ))}
+                ) : messages.length === 0 ? (
+                  <div className="flex justify-center items-center h-20">
+                    <div className="text-muted-foreground">No messages yet. Start a conversation!</div>
+                  </div>
+                ) : (
+                  messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`flex items-start space-x-2 max-w-xs lg:max-w-md`}>
+                        {!message.isUser && (
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className="bg-primary text-primary-foreground">
+                              <Bot className="w-4 h-4" />
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
+                        
+                        <div
+                          className={`rounded-lg p-3 ${
+                            message.isUser
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-green-100 border border-green-300'
+                          }`}
+                        >
+                          <p className="text-sm whitespace-pre-wrap">{message.message}</p>
+                          <div className="text-xs opacity-70 mt-1">
+                            {message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : ''}
+                          </div>
+                        </div>
+                        
+                        {message.isUser && (
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className="bg-blue-500 text-white">
+                              <User className="w-4 h-4" />
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
                 
                 {sendMessageMutation.isPending && (
                   <div className="flex justify-start">
@@ -174,11 +224,11 @@ export default function ChatbotPage() {
                           <Bot className="w-4 h-4" />
                         </AvatarFallback>
                       </Avatar>
-                      <div className="rounded-lg p-3 bg-muted">
+                      <div className="rounded-lg p-3 bg-green-100 border border-green-300">
                         <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                          <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                          <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                         </div>
                       </div>
                     </div>
@@ -188,28 +238,6 @@ export default function ChatbotPage() {
                 <div ref={messagesEndRef} />
               </div>
               
-              {/* Quick Actions */}
-              {messages.length <= 2 && (
-                <div className="px-6 py-4 border-t border-border">
-                  <p className="text-sm text-muted-foreground mb-3">Quick actions:</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {quickActions.map((action) => (
-                      <Button
-                        key={action.label}
-                        variant="outline"
-                        size="sm"
-                        className="justify-start"
-                        onClick={() => sendMessageMutation.mutate(action.action)}
-                        data-testid={`quick-action-${action.label.toLowerCase().replace(' ', '-')}`}
-                      >
-                        <action.icon className="w-4 h-4 mr-2" />
-                        {action.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
               {/* Input Area */}
               <div className="p-6 border-t border-border">
                 <div className="flex space-x-2">
@@ -217,15 +245,14 @@ export default function ChatbotPage() {
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder="Type your message..."
+                    placeholder="Describe your symptoms or medical concern..."
                     disabled={sendMessageMutation.isPending}
-                    className="flex-1"
-                    data-testid="input-chat-message"
+                    className="flex-1 border-green-300 focus:border-green-500"
                   />
                   <Button 
                     onClick={sendMessage}
                     disabled={!inputMessage.trim() || sendMessageMutation.isPending}
-                    data-testid="button-send-message"
+                    className="bg-green-500 hover:bg-green-600"
                   >
                     <Send className="w-4 h-4" />
                   </Button>

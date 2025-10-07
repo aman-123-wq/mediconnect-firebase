@@ -1,225 +1,339 @@
-import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import Header from "@/components/layout/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Bed, Plus, RefreshCw, Users, AlertTriangle, CheckCircle, Wrench, Sparkles } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import type { Bed, Ward } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
 
-interface BedWithWard extends Bed {
-  ward: Ward;
+interface Bed {
+  id: string;
+  bedNumber: number;
+  status: 'available' | 'occupied' | 'maintenance' | 'cleaning';
+  patientId?: string;
+  patientName?: string;
+  condition?: string;
+  department: string;
+  lastUpdated: string;
 }
 
-const statusColors = {
-  available: "bg-green-100 text-green-800 border-green-200",
-  occupied: "bg-red-100 text-red-800 border-red-200",
-  maintenance: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  cleaning: "bg-blue-100 text-blue-800 border-blue-200",
-};
+// Calculate stats from beds data instead of separate API call
+function calculateBedStats(beds: Bed[]): {
+  totalBeds: number;
+  availableBeds: number;
+  occupiedBeds: number;
+  maintenanceBeds: number;
+  cleaningBeds: number;
+  occupancyRate: number;
+} {
+  const totalBeds = beds.length;
+  const availableBeds = beds.filter(bed => bed.status === 'available').length;
+  const occupiedBeds = beds.filter(bed => bed.status === 'occupied').length;
+  const maintenanceBeds = beds.filter(bed => bed.status === 'maintenance').length;
+  const cleaningBeds = beds.filter(bed => bed.status === 'cleaning').length;
+  const occupancyRate = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
+
+  return {
+    totalBeds,
+    availableBeds,
+    occupiedBeds,
+    maintenanceBeds,
+    cleaningBeds,
+    occupancyRate
+  };
+}
 
 export default function Beds() {
-  const [selectedBed, setSelectedBed] = useState<BedWithWard | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('All');
+  const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: beds = [], isLoading } = useQuery<BedWithWard[]>({
+  // Fetch beds from Firebase
+  const { data: beds = [], isLoading: bedsLoading, refetch: refetchBeds } = useQuery<Bed[]>({
     queryKey: ["/api/beds"],
   });
 
-  const { data: wards = [] } = useQuery<Ward[]>({
-    queryKey: ["/api/wards"],
-  });
+  // Calculate stats from beds data (remove separate stats API call)
+  const stats = calculateBedStats(beds);
 
-  const updateBedStatusMutation = useMutation({
-    mutationFn: async ({ bedId, status, patientId }: { bedId: string; status: string; patientId?: string }) => {
-      await apiRequest("PATCH", `/api/beds/${bedId}/status`, { status, patientId });
+  // Update bed status mutation - FIXED: Use POST to /api/beds with bed ID in body
+  const updateBedMutation = useMutation({
+    mutationFn: async ({ bedId, status, patientName, condition }: { 
+      bedId: string; 
+      status: string; 
+      patientName?: string; 
+      condition?: string; 
+    }) => {
+      return apiRequest("PUT", `/api/beds/${bedId}`, {
+        status,
+        patientName: status === 'available' ? '' : (patientName || 'New Patient'),
+        condition: status === 'available' ? '' : (condition || 'Admitted'),
+        lastUpdated: new Date().toISOString()
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/beds"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      toast({ title: "Success", description: "Bed status updated successfully" });
-      setSelectedBed(null);
+      toast({
+        title: "Success",
+        description: "Bed status updated successfully!",
+      });
     },
-    onError: (error) => {
-      toast({ 
-        title: "Error", 
-        description: error.message,
-        variant: "destructive" 
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update bed status",
+        variant: "destructive",
       });
     },
   });
 
-  const filteredBeds = beds.filter(bed => 
-    statusFilter === "all" || bed.status === statusFilter
-  );
+  // Get unique departments from beds data
+  const departments = ['All', ...Array.from(new Set(beds.map(bed => bed.department)))].filter(Boolean);
 
-  const bedsByWard = filteredBeds.reduce((acc, bed) => {
-    const wardName = bed.ward.name;
-    if (!acc[wardName]) {
-      acc[wardName] = [];
+  const filteredBeds = selectedDepartment === 'All' 
+    ? beds 
+    : beds.filter(bed => bed.department === selectedDepartment);
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'available': return <CheckCircle className="w-4 h-4" />;
+      case 'occupied': return <Users className="w-4 h-4" />;
+      case 'maintenance': return <Wrench className="w-4 h-4" />;
+      case 'cleaning': return <Sparkles className="w-4 h-4" />;
+      default: return <Bed className="w-4 h-4" />;
     }
-    acc[wardName].push(bed);
-    return acc;
-  }, {} as Record<string, BedWithWard[]>);
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'available': return 'Available';
+      case 'occupied': return 'Occupied';
+      case 'maintenance': return 'Maintenance';
+      case 'cleaning': return 'Cleaning';
+      default: return status;
+    }
+  };
+
+  const handleStatusUpdate = (bedId: string, newStatus: string) => {
+    updateBedMutation.mutate({ 
+      bedId, 
+      status: newStatus
+    });
+  };
+
+  if (bedsLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header title="Bed Management" subtitle="Real-time bed availability and status" />
+        <div className="p-6">
+          <div className="flex justify-center items-center h-64">
+            <RefreshCw className="w-8 h-8 animate-spin" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <Header title="Bed Management" subtitle="Real-time bed availability and status" />
       
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex space-x-2">
-            <Badge className="bg-green-100 text-green-800">
-              Available: {beds.filter(b => b.status === 'available').length}
-            </Badge>
-            <Badge className="bg-red-100 text-red-800">
-              Occupied: {beds.filter(b => b.status === 'occupied').length}
-            </Badge>
-            <Badge className="bg-yellow-100 text-yellow-800">
-              Maintenance: {beds.filter(b => b.status === 'maintenance').length}
-            </Badge>
-            <Badge className="bg-blue-100 text-blue-800">
-              Cleaning: {beds.filter(b => b.status === 'cleaning').length}
-            </Badge>
-          </div>
-          
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-48" data-testid="filter-status">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Beds</SelectItem>
-              <SelectItem value="available">Available</SelectItem>
-              <SelectItem value="occupied">Occupied</SelectItem>
-              <SelectItem value="maintenance">Maintenance</SelectItem>
-              <SelectItem value="cleaning">Cleaning</SelectItem>
-            </SelectContent>
-          </Select>
+      <div className="p-6 space-y-6">
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Beds</CardTitle>
+              <Bed className="w-4 h-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalBeds}</div>
+              <p className="text-xs text-muted-foreground">
+                Across all departments
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Available</CardTitle>
+              <CheckCircle className="w-4 h-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{stats.availableBeds}</div>
+              <p className="text-xs text-muted-foreground">
+                Ready for new patients
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Occupied</CardTitle>
+              <Users className="w-4 h-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{stats.occupiedBeds}</div>
+              <p className="text-xs text-muted-foreground">
+                {stats.occupancyRate}% occupancy rate
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Needs Attention</CardTitle>
+              <AlertTriangle className="w-4 h-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">
+                {stats.maintenanceBeds + stats.cleaningBeds}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Maintenance & cleaning
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <Card key={i} className="animate-pulse">
-                <CardHeader>
-                  <div className="h-4 bg-muted rounded w-1/2"></div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="h-3 bg-muted rounded"></div>
-                    <div className="h-3 bg-muted rounded w-2/3"></div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-8">
-            {Object.entries(bedsByWard).map(([wardName, wardBeds]) => (
-              <Card key={wardName}>
-                <CardHeader>
-                  <CardTitle>{wardName}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-                    {wardBeds.map((bed) => (
-                      <div
-                        key={bed.id}
-                        className={`
-                          w-12 h-8 border-2 rounded-sm flex items-center justify-center 
-                          cursor-pointer hover:opacity-80 transition-all
-                          ${statusColors[bed.status as keyof typeof statusColors]}
-                        `}
-                        onClick={() => setSelectedBed(bed)}
-                        data-testid={`bed-${bed.bedNumber}`}
-                      >
-                        <span className="text-xs font-medium">
-                          {bed.bedNumber}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-3 text-sm text-muted-foreground">
-                    <span className="text-green-600 font-medium">
-                      {wardBeds.filter(b => b.status === 'available').length}
-                    </span> available, 
-                    <span className="text-red-600 font-medium ml-1">
-                      {wardBeds.filter(b => b.status === 'occupied').length}
-                    </span> occupied
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        {/* Department Filter */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-wrap gap-2">
+              {departments.map(dept => (
+                <Button
+                  key={dept}
+                  variant={selectedDepartment === dept ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedDepartment(dept)}
+                >
+                  {dept}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Bed Details Modal */}
-        {selectedBed && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <Card className="w-full max-w-md mx-4">
-              <CardHeader>
-                <CardTitle>
-                  {selectedBed.ward.name} - Bed {selectedBed.bedNumber}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Current Status</label>
-                  <div className="mt-1">
-                    <Badge className={statusColors[selectedBed.status as keyof typeof statusColors]}>
-                      {selectedBed.status}
-                    </Badge>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium">Update Status</label>
-                  <Select 
-                    onValueChange={(status) => {
-                      updateBedStatusMutation.mutate({ 
-                        bedId: selectedBed.id, 
-                        status 
-                      });
-                    }}
-                  >
-                    <SelectTrigger className="mt-1" data-testid="update-bed-status">
-                      <SelectValue placeholder="Select new status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="available">Available</SelectItem>
-                      <SelectItem value="occupied">Occupied</SelectItem>
-                      <SelectItem value="maintenance">Maintenance</SelectItem>
-                      <SelectItem value="cleaning">Cleaning</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {selectedBed.notes && (
+        {/* Beds Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredBeds.map((bed) => (
+            <Card key={bed.id} className={`border-l-4 ${
+              bed.status === 'available' ? 'border-l-green-500' :
+              bed.status === 'occupied' ? 'border-l-red-500' :
+              bed.status === 'maintenance' ? 'border-l-yellow-500' :
+              'border-l-blue-500'
+            }`}>
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start">
                   <div>
-                    <label className="text-sm font-medium">Notes</label>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {selectedBed.notes}
-                    </p>
+                    <CardTitle className="text-lg">Bed {bed.bedNumber}</CardTitle>
+                    <p className="text-sm text-muted-foreground">{bed.department}</p>
+                  </div>
+                  <Badge 
+                    variant="secondary" 
+                    className={`flex items-center gap-1 ${
+                      bed.status === 'available' ? 'bg-green-100 text-green-800' :
+                      bed.status === 'occupied' ? 'bg-red-100 text-red-800' :
+                      bed.status === 'maintenance' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-blue-100 text-blue-800'
+                    }`}
+                  >
+                    {getStatusIcon(bed.status)}
+                    {getStatusText(bed.status)}
+                  </Badge>
+                </div>
+              </CardHeader>
+              
+              <CardContent className="space-y-3">
+                {bed.status === 'occupied' && bed.patientName && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Patient: {bed.patientName}</p>
+                    {bed.condition && (
+                      <p className="text-xs text-muted-foreground">Condition: {bed.condition}</p>
+                    )}
                   </div>
                 )}
-
-                <div className="flex space-x-3 pt-4">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setSelectedBed(null)}
-                    className="flex-1"
-                    data-testid="button-close-bed-modal"
-                  >
-                    Close
-                  </Button>
+                
+                <div className="flex flex-wrap gap-2">
+                  {bed.status !== 'available' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleStatusUpdate(bed.id, 'available')}
+                      disabled={updateBedMutation.isPending}
+                    >
+                      Mark Available
+                    </Button>
+                  )}
+                  {bed.status !== 'occupied' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleStatusUpdate(bed.id, 'occupied')}
+                      disabled={updateBedMutation.isPending}
+                    >
+                      Mark Occupied
+                    </Button>
+                  )}
+                  {bed.status !== 'maintenance' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleStatusUpdate(bed.id, 'maintenance')}
+                      disabled={updateBedMutation.isPending}
+                    >
+                      Maintenance
+                    </Button>
+                  )}
+                  {bed.status !== 'cleaning' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleStatusUpdate(bed.id, 'cleaning')}
+                      disabled={updateBedMutation.isPending}
+                    >
+                      Cleaning
+                    </Button>
+                  )}
                 </div>
+                
+                <p className="text-xs text-muted-foreground">
+                  Updated: {new Date(bed.lastUpdated).toLocaleTimeString()}
+                </p>
               </CardContent>
             </Card>
-          </div>
+          ))}
+        </div>
+
+        {/* Empty State */}
+        {filteredBeds.length === 0 && (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Bed className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold">No beds found</h3>
+              <p className="text-muted-foreground">
+                {selectedDepartment === 'All' 
+                  ? 'No beds are currently configured in the system.'
+                  : `No beds found in the ${selectedDepartment} department.`
+                }
+              </p>
+            </CardContent>
+          </Card>
         )}
+
+        {/* Refresh Button */}
+        <div className="flex justify-center">
+          <Button
+            onClick={() => refetchBeds()}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh Beds
+          </Button>
+        </div>
       </div>
     </div>
   );

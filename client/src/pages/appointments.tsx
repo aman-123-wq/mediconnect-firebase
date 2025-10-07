@@ -6,11 +6,36 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, Clock, User, Phone } from "lucide-react";
 import AppointmentBookingModal from "@/components/modals/appointment-booking-modal";
-import type { Appointment, Patient, Doctor } from "@shared/schema";
+
+// REPLACE the old PostgreSQL types with Firebase-compatible types
+interface Patient {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber?: string;
+  // add other patient fields you need
+}
+
+interface Doctor {
+  id: string;
+  userId: string;
+  department: string;
+  // add other doctor fields you need
+}
+
+interface Appointment {
+  id: string;
+  patientId: string;
+  doctorId: string;
+  appointmentDate: string;
+  status: 'scheduled' | 'confirmed' | 'waiting' | 'completed' | 'cancelled';
+  reason?: string;
+  // add other appointment fields you need
+}
 
 interface AppointmentWithDetails extends Appointment {
-  patient: Patient;
-  doctor: Doctor;
+  patient?: Patient;  // Made optional with ?
+  doctor?: Doctor;    // Made optional with ?
 }
 
 const statusColors = {
@@ -106,10 +131,10 @@ export default function Appointments() {
                           </div>
                           <div>
                             <p className="font-medium">
-                              {appointment.patient.firstName} {appointment.patient.lastName}
+                              {appointment.patient?.firstName || 'Unknown'} {appointment.patient?.lastName || 'Patient'}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              Dr. {appointment.doctor.userId} - {appointment.doctor.department}
+                              Dr. {appointment.doctor?.userId || 'Unknown'} - {appointment.doctor?.department || 'No Department'}
                             </p>
                             <div className="flex items-center space-x-4 mt-1">
                               <div className="flex items-center space-x-1 text-xs text-muted-foreground">
@@ -122,7 +147,7 @@ export default function Appointments() {
                                   })}
                                 </span>
                               </div>
-                              {appointment.patient.phoneNumber && (
+                              {appointment.patient?.phoneNumber && (
                                 <div className="flex items-center space-x-1 text-xs text-muted-foreground">
                                   <Phone className="w-3 h-3" />
                                   <span>{appointment.patient.phoneNumber}</span>
@@ -160,10 +185,10 @@ export default function Appointments() {
                         </div>
                         <div>
                           <p className="font-medium">
-                            {appointment.patient.firstName} {appointment.patient.lastName}
+                            {appointment.patient?.firstName || 'Unknown'} {appointment.patient?.lastName || 'Patient'}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Dr. {appointment.doctor.userId} - {appointment.doctor.department}
+                            Dr. {appointment.doctor?.userId || 'Unknown'} - {appointment.doctor?.department || 'No Department'}
                           </p>
                           <div className="flex items-center space-x-4 mt-1">
                             <div className="flex items-center space-x-1 text-xs text-muted-foreground">
