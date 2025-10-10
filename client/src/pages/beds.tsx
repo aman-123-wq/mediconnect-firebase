@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Bed, Plus, RefreshCw, Users, AlertTriangle, CheckCircle, Wrench, Sparkles } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/lib/api"; // ← ADD THIS IMPORT
 
 interface Bed {
   id: string;
@@ -50,9 +51,10 @@ export default function Beds() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch beds from Firebase
+  // Fetch beds from Firebase - ← UPDATE THIS QUERY
   const { data: beds = [], isLoading: bedsLoading, refetch: refetchBeds } = useQuery<Bed[]>({
-    queryKey: ["/api/beds"],
+    queryKey: ["beds"],
+    queryFn: () => apiClient.get("/api/beds")
   });
 
   // Calculate stats from beds data (remove separate stats API call)
@@ -74,7 +76,7 @@ export default function Beds() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/beds"] });
+      queryClient.invalidateQueries({ queryKey: ["beds"] }); // ← UPDATE QUERY KEY
       toast({
         title: "Success",
         description: "Bed status updated successfully!",

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import Header from "@/components/layout/header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { apiClient } from "@/lib/api"; // ← ADD THIS IMPORT
 
 interface Patient {
   id: string;
@@ -29,12 +30,12 @@ export default function Patients() {
     bloodType: "O+"
   });
 
-  const { data: patients = [], isLoading, refetch } = useQuery<Patient[]>({
-    queryKey: ["patients-data"],
-    queryFn: () => 
-      fetch('http://localhost:3000/patients')
-        .then(r => r.json())
-        .then(data => data)
+  const queryClient = useQueryClient();
+
+  // UPDATE THIS QUERY
+  const { data: patients = [], isLoading } = useQuery<Patient[]>({
+    queryKey: ["patients"],
+    queryFn: () => apiClient.get("/api/patients")
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -42,29 +43,58 @@ export default function Patients() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  // ADD PATIENT - UPDATE THIS MUTATION
+  const addPatientMutation = useMutation({
+    mutationFn: async (patientData: any) => {
+      return apiClient.post("/api/patients", {
+        firstName: patientData.firstName,
+        lastName: patientData.lastName,
+        email: patientData.email,
+        phoneNumber: patientData.phone,
+        condition: patientData.condition,
+        bloodType: patientData.bloodType
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      resetForm();
+    },
+    onError: (error) => {
+      console.error('❌ Error creating patient:', error);
+    }
+  });
+
+  // EDIT PATIENT - UPDATE THIS MUTATION
+  const editPatientMutation = useMutation({
+    mutationFn: async ({ patientId, patientData }: { patientId: string; patientData: any }) => {
+      return apiClient.put(`/api/patients/${patientId}`, patientData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      resetForm();
+    },
+    onError: (error) => {
+      console.error('❌ Error updating patient:', error);
+    }
+  });
+
+  // DELETE PATIENT - UPDATE THIS MUTATION
+  const deletePatientMutation = useMutation({
+    mutationFn: async (patientId: string) => {
+      return apiClient.delete(`/api/patients/${patientId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+    },
+    onError: (error) => {
+      console.error('❌ Error deleting patient:', error);
+    }
+  });
+
   // ADD PATIENT
   const addPatient = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const response = await fetch('http://localhost:3000/api/patients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: `${formData.firstName} ${formData.lastName}`,
-          email: formData.email,
-          phone: formData.phone
-        })
-      });
-      
-      const result = await response.json();
-      console.log('✅ Patient created:', result);
-      
-      resetForm();
-      refetch();
-      
-    } catch (error) {
-      console.error('❌ Error creating patient:', error);
-    }
+    addPatientMutation.mutate(formData);
   };
 
   // EDIT PATIENT
@@ -72,47 +102,23 @@ export default function Patients() {
     e.preventDefault();
     if (!editingPatient) return;
     
-    try {
-      const response = await fetch(`http://localhost:3000/api/patients/${editingPatient.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: `${formData.firstName} ${formData.lastName}`,
-          email: formData.email,
-          phone: formData.phone,
-          condition: formData.condition,
-          bloodType: formData.bloodType
-        })
-      });
-      
-      const result = await response.json();
-      console.log('✅ Patient updated:', result);
-      
-      resetForm();
-      refetch();
-      
-    } catch (error) {
-      console.error('❌ Error updating patient:', error);
-    }
+    editPatientMutation.mutate({
+      patientId: editingPatient.id,
+      patientData: {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phoneNumber: formData.phone,
+        condition: formData.condition,
+        bloodType: formData.bloodType
+      }
+    });
   };
 
   // DELETE PATIENT
   const deletePatient = async (patientId: string) => {
     if (!confirm("Are you sure you want to delete this patient?")) return;
-    
-    try {
-      const response = await fetch(`http://localhost:3000/api/patients/${patientId}`, {
-        method: 'DELETE'
-      });
-      
-      const result = await response.json();
-      console.log('✅ Patient deleted:', result);
-      
-      refetch();
-      
-    } catch (error) {
-      console.error('❌ Error deleting patient:', error);
-    }
+    deletePatientMutation.mutate(patientId);
   };
 
   // START EDITING
@@ -249,8 +255,15 @@ export default function Patients() {
               </div>
               
               <div className="flex gap-2">
-                <Button type="submit" className="bg-blue-500 hover:bg-blue-600">
-                  {editingPatient ? "Update Patient" : "Create Patient"}
+                <Button 
+                  type="submit" 
+                  className="bg-blue-500 hover:bg-blue-600"
+                  disabled={addPatientMutation.isPending || editPatientMutation.isPending}
+                >
+                  {editingPatient 
+                    ? (editPatientMutation.isPending ? "Updating..." : "Update Patient")
+                    : (addPatientMutation.isPending ? "Creating..." : "Create Patient")
+                  }
                 </Button>
                 {editingPatient && (
                   <Button type="button" onClick={resetForm} className="bg-gray-500 hover:bg-gray-600">
@@ -305,8 +318,9 @@ export default function Patients() {
                     <Button 
                       onClick={() => deletePatient(patient.id)}
                       className="bg-red-500 hover:bg-red-600 text-white text-sm"
+                      disabled={deletePatientMutation.isPending}
                     >
-                      Delete
+                      {deletePatientMutation.isPending ? "Deleting..." : "Delete"}
                     </Button>
                   </div>
                 </CardContent>

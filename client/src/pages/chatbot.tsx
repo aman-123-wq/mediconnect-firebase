@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Bot, User, Send, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { apiClient } from "@/lib/api"; // ← ADD THIS IMPORT
 
 interface ChatMessage {
   id: string;
@@ -27,9 +28,10 @@ export default function ChatbotPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
-  // Fetch messages from Firebase
+  // Fetch messages from Firebase - ← UPDATE THIS QUERY
   const { data: messages = [], isLoading: messagesLoading } = useQuery<ChatMessage[]>({
-    queryKey: ["/api/chatbot/messages", sessionId],
+    queryKey: ["chatbot-messages", sessionId],
+    queryFn: () => apiClient.get(`/api/chatbot/messages?sessionId=${sessionId}`)
   });
 
   // Store message in Firebase mutation
@@ -41,7 +43,7 @@ export default function ChatbotPage() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/chatbot/messages", sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["chatbot-messages", sessionId] }); // ← UPDATE QUERY KEY
     }
   });
 
@@ -51,7 +53,7 @@ export default function ChatbotPage() {
       return apiRequest("DELETE", `/api/chatbot/messages/${sessionId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/chatbot/messages", sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["chatbot-messages", sessionId] }); // ← UPDATE QUERY KEY
       toast({
         title: "Success",
         description: "Chat history cleared!",

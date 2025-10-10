@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Heart, MapPin, Phone, Plus } from "lucide-react";
+import { apiClient } from "@/lib/api"; // ← ADD THIS IMPORT
 
 // Define the donor type
 interface OrganDonor {
@@ -36,16 +37,13 @@ const statusColors = {
   unavailable: "bg-red-100 text-red-800",
 };
 
-// Base URL for API - CHANGE THIS IF YOUR SERVER RUNS ON DIFFERENT PORT
-const API_BASE = 'http://localhost:3000';
-
 export default function Donors() {
   const [bloodTypeFilter, setBloodTypeFilter] = useState<string>("all");
   const [organTypeFilter, setOrganTypeFilter] = useState<string>("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  // Fetch donors
+  // Fetch donors - ← UPDATE THIS QUERY
   const { data: donors = [], isLoading } = useQuery<OrganDonor[]>({
     queryKey: ["donors", { bloodType: bloodTypeFilter, organType: organTypeFilter }],
     queryFn: async ({ queryKey }) => {
@@ -60,34 +58,16 @@ export default function Donors() {
       }
       
       const queryString = searchParams.toString();
-      const url = queryString ? `${API_BASE}/api/donors?${queryString}` : `${API_BASE}/api/donors`;
+      const url = queryString ? `/api/donors?${queryString}` : `/api/donors`;
       
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch donors');
-      }
-      
-      return response.json();
+      return apiClient.get(url);
     },
   });
 
-  // Add donor mutation
+  // Add donor mutation - ← UPDATE THIS MUTATION
   const addDonorMutation = useMutation({
     mutationFn: async (newDonor: Omit<OrganDonor, 'id'>) => {
-      const response = await fetch(`${API_BASE}/api/donors`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newDonor),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to add donor');
-      }
-      
-      return response.json();
+      return apiClient.post("/api/donors", newDonor);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['donors'] });

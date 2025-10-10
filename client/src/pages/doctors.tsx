@@ -11,7 +11,19 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { UserCheck, UserX, Phone, Plus } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Doctor } from "@shared/schema";
+import { apiClient } from "@/lib/api"; // ← ADD THIS IMPORT
+
+// ADD DOCTOR INTERFACE (since we removed the shared schema import)
+interface Doctor {
+  id: string;
+  userId: string;
+  specialization: string;
+  department: string;
+  licenseNumber: string;
+  phoneNumber?: string;
+  available: boolean;
+  createdAt?: string;
+}
 
 export default function Doctors() {
   const [isAddDoctorOpen, setIsAddDoctorOpen] = useState(false);
@@ -27,8 +39,10 @@ export default function Doctors() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // UPDATE THIS QUERY
   const { data: doctors = [], isLoading } = useQuery<Doctor[]>({
-    queryKey: ["/api/doctors"],
+    queryKey: ["doctors"],
+    queryFn: () => apiClient.get("/api/doctors")
   });
 
   // Add doctor mutation
@@ -40,7 +54,7 @@ export default function Doctors() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/doctors"] });
+      queryClient.invalidateQueries({ queryKey: ["doctors"] }); // ← UPDATE QUERY KEY
       toast({
         title: "Success",
         description: "Doctor added successfully!",

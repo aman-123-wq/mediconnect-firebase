@@ -6,14 +6,18 @@ import RecentAlerts from "@/components/dashboard/recent-alerts";
 import TodaysAppointments from "@/components/dashboard/todays-appointments";
 import DonorRegistry from "@/components/dashboard/donor-registry";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { apiClient } from "@/lib/api"; // ← ADD THIS IMPORT
 
 export default function Dashboard() {
+  // UPDATE BOTH QUERIES
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["/api/dashboard/stats"],
+    queryKey: ["dashboard-stats"],
+    queryFn: () => apiClient.get("/api/dashboard/stats")
   });
 
   const { data: alerts, isLoading: alertsLoading } = useQuery({
-    queryKey: ["/api/alerts/unread"],
+    queryKey: ["alerts"],
+    queryFn: () => apiClient.get("/api/alerts/unread")
   });
 
   // Connect to WebSocket for real-time updates

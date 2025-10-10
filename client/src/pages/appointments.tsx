@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, Clock, User, Phone } from "lucide-react";
 import AppointmentBookingModal from "@/components/modals/appointment-booking-modal";
+import { apiClient } from "@/lib/api"; // ← ADD THIS IMPORT
 
 // REPLACE the old PostgreSQL types with Firebase-compatible types
 interface Patient {
@@ -49,8 +50,10 @@ const statusColors = {
 export default function Appointments() {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
 
+  // ← UPDATE THIS QUERY (2 lines changed)
   const { data: appointments = [], isLoading } = useQuery<AppointmentWithDetails[]>({
-    queryKey: ["/api/appointments"],
+    queryKey: ["appointments"],
+    queryFn: () => apiClient.get("/api/appointments")
   });
 
   const todayAppointments = appointments.filter(apt => {
