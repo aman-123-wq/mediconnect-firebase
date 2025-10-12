@@ -23,6 +23,44 @@ const mockChatbot = {
   }
 };
 
+// 🔥 FIREBASE CONNECTION TEST ENDPOINT - Add this
+router.get('/api/test-firebase', async (req, res) => {
+  try {
+    console.log('Testing Firebase connection...');
+    
+    // Test Firestore
+    const testDoc = {
+      message: 'Firebase connection test from Render',
+      timestamp: new Date().toISOString(),
+      status: 'success',
+      source: 'render-backend'
+    };
+    
+    const docRef = await db.collection('connection-tests').add(testDoc);
+    console.log('✅ Test document created with ID:', docRef.id);
+    
+    // Test reading
+    const snapshot = await db.collection('connection-tests').get();
+    console.log('✅ Total test documents:', snapshot.size);
+    
+    res.json({
+      success: true,
+      message: 'Firebase connected successfully!',
+      documentId: docRef.id,
+      totalDocuments: snapshot.size,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Firebase connection failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Authentication middleware
 export const authenticateToken = async (req: any, res: any, next: any) => {
   const token = req.headers.authorization?.split('Bearer ')[1];
