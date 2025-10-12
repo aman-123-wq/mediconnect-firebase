@@ -1,27 +1,9 @@
 import express from 'express';
 import { auth, db } from './firebase';
 import { firebaseDB, FirebaseHelpers } from './db';
+import verifyCredentials from './verify-credentials.js'; // ← ADDED THIS LINE
 
 const router = express.Router();
-
-// Mock chatbot responses
-const mockChatbot = {
-  getResponse: (userMessage: string) => {
-    const responses = [
-      `I understand: "${userMessage}". How can I help with your medical needs?`,
-      `Thanks for your message about ${userMessage}. I'm a healthcare assistant bot.`,
-      `I see you're discussing ${userMessage}. As a medical chatbot, I can help with appointment scheduling, patient info, or general health questions.`,
-      `Regarding "${userMessage}" - I can assist with patient records, doctor appointments, or hospital services.`,
-      `I'm MediConnect's mock chatbot. You said: "${userMessage}" - how can I assist with healthcare services today?`
-    ];
-    
-    return {
-      reply: responses[Math.floor(Math.random() * responses.length)],
-      isMock: true,
-      timestamp: new Date().toISOString()
-    };
-  }
-};
 
 // 🔥 FIREBASE CONNECTION TEST ENDPOINT - Add this
 router.get('/api/test-firebase', async (req, res) => {
@@ -60,6 +42,28 @@ router.get('/api/test-firebase', async (req, res) => {
     });
   }
 });
+
+// ADDED THIS ROUTE - Verify credentials endpoint
+router.get('/api/verify-credentials', verifyCredentials); // ← ADDED THIS LINE
+
+// Mock chatbot responses
+const mockChatbot = {
+  getResponse: (userMessage: string) => {
+    const responses = [
+      `I understand: "${userMessage}". How can I help with your medical needs?`,
+      `Thanks for your message about ${userMessage}. I'm a healthcare assistant bot.`,
+      `I see you're discussing ${userMessage}. As a medical chatbot, I can help with appointment scheduling, patient info, or general health questions.`,
+      `Regarding "${userMessage}" - I can assist with patient records, doctor appointments, or hospital services.`,
+      `I'm MediConnect's mock chatbot. You said: "${userMessage}" - how can I assist with healthcare services today?`
+    ];
+    
+    return {
+      reply: responses[Math.floor(Math.random() * responses.length)],
+      isMock: true,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
 
 // Authentication middleware
 export const authenticateToken = async (req: any, res: any, next: any) => {
