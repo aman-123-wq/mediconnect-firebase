@@ -1,11 +1,39 @@
 import express from 'express';
 import { auth, db } from './firebase';
 import { firebaseDB, FirebaseHelpers } from './db';
-import verifyCredentials from './verify-credentials.js'; // ← ADDED THIS LINE
+import verifyCredentials from './verify-credentials.js';
 
 const router = express.Router();
 
-// 🔥 FIREBASE CONNECTION TEST ENDPOINT - Add this
+// SIMPLE VERIFICATION ENDPOINT - Add this at the top
+router.get('/verify-firebase', async (req, res) => {
+  try {
+    res.json({
+      status: 'success',
+      message: 'Firebase is connected and working!',
+      timestamp: new Date().toISOString(),
+      service: 'MediConnect HMS Backend'
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Firebase verification failed',
+      error: error.message
+    });
+  }
+});
+
+// HEALTH CHECK ENDPOINT
+router.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    message: 'MediConnect HMS Server is running',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  });
+});
+
+// FIREBASE CONNECTION TEST ENDPOINT
 router.get('/api/test-firebase', async (req, res) => {
   try {
     console.log('Testing Firebase connection...');
@@ -43,8 +71,8 @@ router.get('/api/test-firebase', async (req, res) => {
   }
 });
 
-// ADDED THIS ROUTE - Verify credentials endpoint
-router.get('/api/verify-credentials', verifyCredentials); // ← ADDED THIS LINE
+// VERIFY CREDENTIALS ENDPOINT
+router.get('/api/verify-credentials', verifyCredentials);
 
 // Mock chatbot responses
 const mockChatbot = {
@@ -102,7 +130,7 @@ router.post('/api/chat', async (req, res) => {
 });
 
 // Patient routes
-router.get('/api/patients',async (req, res) => {
+router.get('/api/patients', async (req, res) => {
   try {
     const patients = await FirebaseHelpers.getAll(firebaseDB.patients);
     res.json(patients);
@@ -168,7 +196,7 @@ router.get('/api/beds', async (req, res) => {
   }
 });
 
-router.post('/api/beds',async (req, res) => {
+router.post('/api/beds', async (req, res) => {
   try {
     const bed = await FirebaseHelpers.create(firebaseDB.beds, req.body);
     res.json(bed);
@@ -178,7 +206,7 @@ router.post('/api/beds',async (req, res) => {
 });
 
 // Add this PUT route for updating beds
-router.put('/api/beds/:id',async (req, res) => {
+router.put('/api/beds/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -191,7 +219,7 @@ router.put('/api/beds/:id',async (req, res) => {
 });
 
 // Donor routes - FIXED VERSION
-router.get('/api/donors',async (req, res) => {
+router.get('/api/donors', async (req, res) => {
   try {
     const { bloodType, organType } = req.query;
     let donors = await FirebaseHelpers.getAll(firebaseDB.donors);
