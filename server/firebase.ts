@@ -1,5 +1,14 @@
 import admin from 'firebase-admin';
-import serviceAccount from './firebase-service-account.json';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load service account using the same method as test-firebase.js
+const serviceAccountPath = path.join(__dirname, 'firebase-service-account.json');
+const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
