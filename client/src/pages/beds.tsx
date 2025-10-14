@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bed, Plus, RefreshCw, Users, AlertTriangle, CheckCircle, Wrench, Sparkles } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api"; // ← ADD THIS IMPORT
 
@@ -61,35 +61,36 @@ export default function Beds() {
   const stats = calculateBedStats(beds);
 
   // Update bed status mutation - FIXED: Use POST to /api/beds with bed ID in body
-  const updateBedMutation = useMutation({
-    mutationFn: async ({ bedId, status, patientName, condition }: { 
-      bedId: string; 
-      status: string; 
-      patientName?: string; 
-      condition?: string; 
-    }) => {
-      return apiRequest("PUT", `/api/beds/${bedId}`, {
-        status,
-        patientName: status === 'available' ? '' : (patientName || 'New Patient'),
-        condition: status === 'available' ? '' : (condition || 'Admitted'),
-        lastUpdated: new Date().toISOString()
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["beds"] }); // ← UPDATE QUERY KEY
-      toast({
-        title: "Success",
-        description: "Bed status updated successfully!",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update bed status",
-        variant: "destructive",
-      });
-    },
-  });
+ // UPDATE THIS MUTATION - use apiClient instead of apiRequest
+const updateBedMutation = useMutation({
+  mutationFn: async ({ bedId, status, patientName, condition }: { 
+    bedId: string; 
+    status: string; 
+    patientName?: string; 
+    condition?: string; 
+  }) => {
+    return apiClient.put(`/api/beds/${bedId}`, {  // ← CHANGE TO apiClient.put
+      status,
+      patientName: status === 'available' ? '' : (patientName || 'New Patient'),
+      condition: status === 'available' ? '' : (condition || 'Admitted'),
+      lastUpdated: new Date().toISOString()
+    });
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["beds"] });
+    toast({
+      title: "Success",
+      description: "Bed status updated successfully!",
+    });
+  },
+  onError: (error: any) => {
+    toast({
+      title: "Error",
+      description: error.message || "Failed to update bed status",
+      variant: "destructive",
+    });
+  },
+});
 
   // Get unique departments from beds data
   const departments = ['All', ...Array.from(new Set(beds.map(bed => bed.department)))].filter(Boolean);

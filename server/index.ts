@@ -6,9 +6,15 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
+// FIX THIS - Add your Surge domain
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
-  credentials: true
+  origin: [
+    'https://mediconnect-aman.surge.sh',  // ← ADD THIS
+    'http://localhost:5173', 
+    'http://localhost:3000'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']  // ← ADD METHODS
 }));
 app.use(express.json());
 app.use(routes);

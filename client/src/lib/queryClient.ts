@@ -1,7 +1,6 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-const API_BASE_URL = 'http://localhost:3000';
-
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://mediconnect-firebase.onrender.com';
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;

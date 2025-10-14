@@ -7,6 +7,12 @@ export function useWebSocket() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    // Disable WebSocket in production (Surge doesn't support it)
+    if (process.env.NODE_ENV === 'production') {
+      console.log("WebSocket disabled in production");
+      return;
+    }
+
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     
