@@ -530,19 +530,169 @@ app.delete('/api/chatbot/messages/:sessionId', async (req, res) => {
 // ===== MAIN CHATBOT LOGIC =====
 
 // Comprehensive Medical Knowledge Database
+// SMART CHATBOT WITH DISEASE UNDERSTANDING
+let conversationMemory = {};
+
 app.post('/api/chatbot/message', async (req, res) => {
   try {
     const { message, sessionId } = req.body;
     const lowerMessage = message.toLowerCase().trim();
 
-    // ===== CONVERSATIONAL CHATBOT FUNCTIONALITY =====
-    // Conversational responses for common symptoms and general health questions
-    const conversationalResponses = {
-      'greeting': [
-        "Hello! I'm your MediCare Medical Assistant. I'm here to help you with health concerns, symptom analysis, and medical information. What would you like to discuss today?",
-        "Hi there! I'm a medical assistant ready to help with your health questions. Please tell me what's concerning you or what medical information you need.",
-        "Welcome! I specialize in medical information and symptom analysis. How can I assist you with your health concerns today?"
-      ],
+    // Initialize conversation memory
+    if (!conversationMemory[sessionId]) {
+      conversationMemory[sessionId] = {
+        currentDisease: null,
+        symptomDetails: {},
+        askedQuestions: [],
+        conversationStep: 0
+      };
+    }
+
+    const memory = conversationMemory[sessionId];
+
+    // DISEASE DETECTION
+    const detectDisease = (message: string) => {
+      if (message.includes('fever') || message.includes('temperature') || message.includes('hot')) return 'fever';
+      if (message.includes('headache') || message.includes('migraine')) return 'headache';
+      if (message.includes('cough') || message.includes('coughing')) return 'cough';
+      if (message.includes('cold') || message.includes('flu') || message.includes('runny nose')) return 'cold';
+      if (message.includes('stomach') || message.includes('abdominal') || message.includes('diarrhea')) return 'stomach';
+      if (message.includes('chest pain') || message.includes('heart')) return 'heart';
+      if (message.includes('breathing') || message.includes('breath') || message.includes('asthma')) return 'breathing';
+      if (message.includes('pain') || message.includes('hurt')) return 'pain';
+      return null;
+    };
+
+    // SYMPTOM ANALYSIS AND RESPONSE
+    const analyzeSymptoms = (disease: string, details: any) => {
+      switch (disease) {
+        case 'fever':
+          if (!details.temperature) {
+            return "🤒 **FEVER ASSESSMENT**\n\nI understand you have fever. To help you better:\n\n**What is your temperature?**\n• Please provide the number (e.g., 38.5°C or 101°F)\n• This helps determine severity";
+          }
+          
+          const temp = parseFloat(details.temperature);
+          if (temp >= 39.5) {
+            return `🚨 **HIGH FEVER EMERGENCY - ${details.temperature}°C**\n\n**Immediate Actions Required:**\n• Go to emergency department now\n• This could indicate serious infection\n• Take acetaminophen if available\n• Drink plenty of water\n• Monitor for confusion or severe headache`;
+          } else if (temp >= 38.0) {
+            if (!details.duration) {
+              return `🌡️ **MODERATE FEVER - ${details.temperature}°C**\n\n**Current Assessment:**\n• Moderate fever requiring attention\n• Rest and hydration essential\n\n**How long have you had this fever?**\n• Hours? Days?`;
+            }
+            
+            const duration = details.duration;
+            if (duration.includes('day') && parseInt(duration) > 3) {
+              return `⏰ **PROLONGED FEVER - ${details.temperature}°C for ${duration}**\n\n**Medical Attention Needed:**\n• Fever lasting multiple days requires doctor visit\n• Could indicate bacterial infection\n• Please see healthcare provider today`;
+            } else {
+              return `💊 **FEVER MANAGEMENT - ${details.temperature}°C for ${duration}**\n\n**Recommended Care:**\n• Rest and hydrate well\n• Take fever reducers as directed\n• Monitor temperature every 4 hours\n• See doctor if not improving in 24 hours`;
+            }
+          } else {
+            return `🌡️ **LOW-GRADE FEVER - ${details.temperature}°C**\n\n**Guidance:**\n• Usually not serious\n• Rest and hydration should help\n• Monitor for other symptoms\n• Should improve in 1-2 days`;
+          }
+
+        case 'headache':
+          if (!details.severity) {
+            return "🤕 **HEADACHE ASSESSMENT**\n\nI understand you have a headache.\n\n**How would you describe the pain?**\n• Mild, Moderate, or Severe?\n• Throbbing or constant?";
+          }
+          
+          if (details.severity.includes('severe') || details.severity.includes('worst')) {
+            return "🚨 **SEVERE HEADACHE - POTENTIAL EMERGENCY**\n\n**Seek Immediate Care If:**\n• Sudden severe headache\n• With fever and stiff neck\n• With confusion or vision changes\n• After head injury\n\n**Otherwise:**\n• Rest in dark room\n• Hydrate well\n• Over-the-counter pain relief";
+          } else {
+            return "💊 **HEADACHE MANAGEMENT**\n\n**Self-Care:**\n• Rest in quiet environment\n• Stay hydrated\n• Consider pain relievers\n• Cold compress on forehead\n\n**See Doctor If:**\n• Headache persists >2 days\n• Worsens significantly\n• With other symptoms";
+          }
+
+        case 'cough':
+          if (!details.type) {
+            return "🫁 **COUGH ASSESSMENT**\n\nI understand you have a cough.\n\n**What type of cough?**\n• Dry (no mucus)\n• Wet/productive (with mucus)\n• Barking sound";
+          }
+          
+          if (details.type.includes('blood') || lowerMessage.includes('blood')) {
+            return "🚨 **COUGHING BLOOD - EMERGENCY!**\n\n**Go to Hospital Immediately!**\n• This is a serious symptom\n• Could indicate lung problems\n• Don't wait - seek care now";
+          }
+          
+          if (details.type.includes('breath') || lowerMessage.includes('breathing')) {
+            return "🫁 **BREATHING DIFFICULTY**\n\n**Urgent Care Needed:**\n• Sit upright and stay calm\n• Use emergency inhaler if available\n• Go to ER if:\n  - Lips turn blue\n  - Can't speak normally\n  - Severe distress";
+          }
+          
+          return "💊 **COUGH CARE**\n\n**Management:**\n• Stay well hydrated\n• Honey or lozenges\n• Humidifier at night\n• Avoid irritants\n\n**See Doctor If:**\n• Lasts >3 weeks\n• With fever or chest pain\n• Breathing difficulties";
+
+        case 'cold':
+          return "🤧 **COLD/FLU SYMPTOMS**\n\n**Typical Care:**\n• Rest and hydration are essential\n• Over-the-counter symptom relief\n• Usually improves in 7-10 days\n\n**Seek Medical Care If:**\n• High fever (>39°C)\n• Breathing difficulties\n• Symptoms worsen after 1 week\n• Severe headache or body aches";
+
+        case 'stomach':
+          if (!details.symptoms) {
+            return "🩺 **STOMACH ISSUES**\n\nI understand you have stomach problems.\n\n**What specific symptoms?**\n• Pain, nausea, vomiting, diarrhea?\n• Location of discomfort?";
+          }
+          
+          if (details.symptoms.includes('blood') || details.symptoms.includes('severe pain')) {
+            return "🚨 **ABDOMINAL EMERGENCY**\n\n**Seek Immediate Care For:**\n• Severe abdominal pain\n• Vomiting blood\n• Black stools\n• High fever with pain";
+          }
+          
+          return "💊 **STOMACH CARE**\n\n**General Guidance:**\n• Clear fluids only initially\n• BRAT diet (bananas, rice, applesauce, toast)\n• Rest\n• Avoid dairy and fatty foods\n\n**See Doctor If:**\n• Symptoms persist >2 days\n• Dehydration signs\n• Severe pain";
+
+        case 'heart':
+          return "🚨 **CHEST/HEART SYMPTOMS**\n\n**THIS COULD BE SERIOUS!**\n\n**Seek Emergency Care Immediately If:**\n• Chest pain or pressure\n• Pain radiating to arm/jaw\n• Shortness of breath\n• Nausea with sweating\n• Dizziness or fainting\n\n**Don't wait - call emergency services!**";
+
+        case 'breathing':
+          return "🫁 **BREATHING DIFFICULTIES**\n\n**Urgent Assessment Needed:**\n\n**Go to Emergency If:**\n• Can't catch your breath\n• Lips/fingernails blue\n• Severe wheezing\n• Can't speak full sentences\n\n**Otherwise:**\n• Sit upright\n• Stay calm\n• Use rescue inhaler if available\n• Seek medical care today";
+
+        default:
+          return "🩺 **SYMPTOM ASSESSMENT**\n\nI understand you're not feeling well. Please describe:\n\n• **Specific symptoms** you're experiencing\n• **How long** they've been present\n• **Severity** (mild, moderate, severe)\n• **Any other** related symptoms\n\nThis helps me provide better guidance.";
+      }
+    };
+
+    // CONVERSATION FLOW MANAGEMENT
+    const detectedDisease = detectDisease(lowerMessage);
+    
+    if (!memory.currentDisease && detectedDisease) {
+      // New disease detected
+      memory.currentDisease = detectedDisease;
+      memory.conversationStep = 1;
+      const response = analyzeSymptoms(detectedDisease, memory.symptomDetails);
+      return res.json({ message: response });
+    }
+
+    if (memory.currentDisease) {
+      // Continue existing conversation
+      if (memory.conversationStep === 1) {
+        // Store symptom details based on disease
+        switch (memory.currentDisease) {
+          case 'fever':
+            if (lowerMessage.match(/\d+\.?\d*/)) {
+              memory.symptomDetails.temperature = lowerMessage.match(/\d+\.?\d*/)[0];
+              memory.conversationStep = 2;
+            }
+            break;
+          case 'headache':
+            memory.symptomDetails.severity = lowerMessage;
+            memory.conversationStep = 2;
+            break;
+          case 'cough':
+            memory.symptomDetails.type = lowerMessage;
+            memory.conversationStep = 2;
+            break;
+          case 'stomach':
+            memory.symptomDetails.symptoms = lowerMessage;
+            memory.conversationStep = 2;
+            break;
+        }
+      }
+
+      const response = analyzeSymptoms(memory.currentDisease, memory.symptomDetails);
+      return res.json({ message: response });
+    }
+
+    // Default response for unrecognized input
+    const defaultResponse = `🩺 **MEDICAL ASSISTANT**\n\nI'm here to help with your health concerns. Please describe:\n\n• **Specific symptoms** (fever, headache, cough, pain, etc.)\n• **How you're feeling**\n• **Duration** of symptoms\n• **Any concerns** you have\n\nI'll provide appropriate medical guidance based on your description.`;
+    
+    res.json({ message: defaultResponse });
+
+  } catch (error) {
+    console.error('Chatbot error:', error);
+    res.json({ 
+      message: "I'm experiencing technical difficulties. For immediate medical concerns, please contact healthcare professionals directly." 
+    });
+  }
+});
       
       'fever': [
         "I understand you're experiencing fever. Fever is your body's natural response to fight infection. Could you tell me:\n• How high is your temperature?\n• How long have you had the fever?\n• Any other symptoms like cough, body aches, or fatigue?",

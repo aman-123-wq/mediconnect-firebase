@@ -1,68 +1,45 @@
-import { auth } from './firebase';
-
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://mediconnect-firebase.onrender.com';
-
-async function getAuthToken(): Promise<string> {
-  const user = auth.currentUser;
-  if (!user) throw new Error('User not authenticated');
-  
-  const token = await user.getIdToken();
-  return token;
-}
 
 export const apiClient = {
   async get(endpoint: string) {
-    const token = await getAuthToken();
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    console.log('🔍 Making API call to:', `${API_BASE_URL}${endpoint}`);
+    const response = await fetch(`${API_BASE_URL}${endpoint}`);
+    console.log('📦 API Response status:', response.status);
     
     if (!response.ok) throw new Error('API request failed');
-    return response.json();
+    const data = await response.json();
+    console.log('✅ API Data received:', data);
+    return data;
   },
 
   async post(endpoint: string, data: any) {
-    const token = await getAuthToken();
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(data)
     });
-    
     if (!response.ok) throw new Error('API request failed');
     return response.json();
   },
 
   async put(endpoint: string, data: any) {
-    const token = await getAuthToken();
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(data)
     });
-    
     if (!response.ok) throw new Error('API request failed');
     return response.json();
   },
 
   async delete(endpoint: string) {
-    const token = await getAuthToken();
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
     });
-    
     if (!response.ok) throw new Error('API request failed');
     return response.json();
   }

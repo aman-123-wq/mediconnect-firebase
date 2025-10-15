@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import Header from "@/components/layout/header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,156 +8,170 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Bot, User, Send, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { apiClient } from "@/lib/api"; // ← ADD THIS IMPORT
+import { apiClient } from "@/lib/api";
 
 interface ChatMessage {
   id: string;
   message: string;
   isUser: boolean;
-  timestamp?: string;
-}
-
-interface ChatbotResponse {
-  message: string;
+  timestamp: string;
 }
 
 export default function ChatbotPage() {
-  const [sessionId] = useState(() => `session-${Date.now()}`);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState("");
+  const [sessionId] = useState(() => `session-${Date.now()}`);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const queryClient = useQueryClient();
 
-  // Fetch messages from Firebase - ← UPDATE THIS QUERY
-  const { data: messages = [], isLoading: messagesLoading } = useQuery<ChatMessage[]>({
-    queryKey: ["chatbot-messages", sessionId],
-    queryFn: () => apiClient.get(`/api/chatbot/messages?sessionId=${sessionId}`)
-  });
-
-  // Store message in Firebase mutation
-  const storeMessageMutation = useMutation({
-    mutationFn: async (messageData: { message: string; isUser: boolean; timestamp: string }) => {
-      return apiRequest("POST", "/api/chatbot/store-message", {
-        sessionId,
-        ...messageData
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["chatbot-messages", sessionId] }); // ← UPDATE QUERY KEY
-    }
-  });
-
-  // Clear chat history mutation
-  const clearChatMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest("DELETE", `/api/chatbot/messages/${sessionId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["chatbot-messages", sessionId] }); // ← UPDATE QUERY KEY
-      toast({
-        title: "Success",
-        description: "Chat history cleared!",
-      });
-    }
-  });
-
-  // Send message to chatbot mutation
-  const sendMessageMutation = useMutation({
-    mutationFn: async (message: string): Promise<ChatbotResponse> => {
-      const response = await apiRequest("POST", "/api/chatbot/message", {
-        message,
-        sessionId,
-      });
-      return response.json();
-    },
-    onSuccess: async (response, sentMessage) => {
-      // Store user message in Firebase
-      await storeMessageMutation.mutateAsync({
-        message: sentMessage,
-        isUser: true,
-        timestamp: new Date().toISOString()
-      });
-
-      // Store bot response in Firebase
-      await storeMessageMutation.mutateAsync({
-        message: response.message,
-        isUser: false,
-        timestamp: new Date().toISOString()
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Send welcome message when first loading
-  useEffect(() => {
-    if (messages.length === 0 && !messagesLoading) {
-      const welcomeMessage = "Hello! I am MediCare Medical Assistant. I can help you with:\n• Disease symptoms analysis\n• Medical condition information\n• Health advice and guidance\n• Medication questions\nPlease describe your symptoms or health concerns.";
-      
-      // Store welcome message in Firebase
-      storeMessageMutation.mutate({
-        message: welcomeMessage,
-        isUser: false,
-        timestamp: new Date().toISOString()
-      });
-    }
-  }, [messages.length, messagesLoading]);
-
-  const sendMessage = () => {
-    if (!inputMessage.trim()) return;
+  // Smart medical responses for common symptoms
+  const getSmartResponse = (userMessage: string): string => {
+    const lowerMessage = userMessage.toLowerCase();
     
-    sendMessageMutation.mutate(inputMessage);
-    setInputMessage("");
+    // Fever detection and follow-up
+    if (lowerMessage.includes('fever') || lowerMessage.includes('temperature')) {
+      if (lowerMessage.includes('38') || lowerMessage.includes('39') || lowerMessage.includes('40') || 
+          lowerMessage.includes('100') || lowerMessage.includes('101') || lowerMessage.includes('102')) {
+        
+        const temp = lowerMessage.match(/(\d+\.?\d*)/)?.[0] || 'unknown';
+        if (parseFloat(temp) >= 39.0) {
+          return `🚨 HIGH FEVER ALERT (${temp}°C)\n\n• This requires immediate medical attention\n• Go to emergency department\n• Take fever reducer if available\n• Stay hydrated\n• Monitor for confusion or severe headache`;
+        } else if (parseFloat(temp) >= 38.0) {
+          return `🤒 MODERATE FEVER (${temp}°C)\n\n• Rest and hydrate well\n• Take acetaminophen as directed\n• Monitor every 4 hours\n• See doctor if persists >3 days\n\nHow long have you had fever?`;
+        } else {
+          return `🌡️ LOW FEVER (${temp}°C)\n\n• Usually not serious\n• Rest and hydration\n• Should improve in 1-2 days\n\nAny other symptoms?`;
+        }
+      }
+      return "🤒 I understand you have fever. What is your temperature?";
+    }
+
+    // Headache responses
+    if (lowerMessage.includes('headache')) {
+      if (lowerMessage.includes('severe') || lowerMessage.includes('worst') || lowerMessage.includes('thunderclap')) {
+        return "🚨 SEVERE HEADACHE - Could indicate emergency. Go to ER immediately if:\n• Sudden severe pain\n• With fever/stiff neck\n• With confusion/vision changes";
+      }
+      return "🤕 HEADACHE ASSESSMENT:\n• Rest in quiet room\n• Hydrate well\n• Over-the-counter pain relief\n• See doctor if:\n  - Persists >2 days\n  - Worsens\n  - With other symptoms";
+    }
+
+    // Cough responses
+    if (lowerMessage.includes('cough')) {
+      if (lowerMessage.includes('blood') || lowerMessage.includes('bleeding')) {
+        return "🚨 COUGHING BLOOD - Emergency! Go to hospital immediately!";
+      }
+      if (lowerMessage.includes('breath') || lowerMessage.includes('breathing')) {
+        return "🫁 BREATHING DIFFICULTY:\n• Sit upright\n• Stay calm\n• Seek emergency care if:\n  - Lips turn blue\n  - Can't speak\n  - Severe distress";
+      }
+      return "🫁 COUGH MANAGEMENT:\n• Stay hydrated\n• Honey/lozenges\n• Humidifier\n• See doctor if:\n  - Lasts >3 weeks\n  - With fever\n  - With chest pain";
+    }
+
+    // Cold/Flu symptoms
+    if (lowerMessage.includes('cold') || lowerMessage.includes('flu') || 
+        lowerMessage.includes('runny nose') || lowerMessage.includes('sore throat')) {
+      return "🤧 COLD/FLU SYMPTOMS:\n• Rest and hydration key\n• Over-the-counter symptom relief\n• Usually improves in 7-10 days\n• Seek care if:\n  - High fever\n  - Breathing trouble\n  - Symptoms worsen";
+    }
+
+    // Pain responses
+    if (lowerMessage.includes('pain')) {
+      if (lowerMessage.includes('chest')) {
+        return "🚨 CHEST PAIN - Could be heart-related! Emergency evaluation needed!";
+      }
+      if (lowerMessage.includes('abdominal') || lowerMessage.includes('stomach')) {
+        return "🩺 ABDOMINAL PAIN:\n• Rest\n• Clear fluids only\n• Seek care if:\n  - Severe pain\n  - Fever\n  - Vomiting blood\n  - No improvement";
+      }
+      return "💊 PAIN MANAGEMENT:\n• Rest affected area\n• Over-the-counter pain relief\n• See doctor if:\n  - Severe pain\n  - Persists > few days\n  - With other symptoms";
+    }
+
+    // Duration responses
+    if (lowerMessage.includes('day') || lowerMessage.includes('week') || lowerMessage.includes('month')) {
+      return "⏰ SYMPTOM DURATION:\n• Monitor for changes\n• Keep hydrated\n• Rest as needed\n• Seek medical care if symptoms worsen or don't improve";
+    }
+
+    // Default medical response
+    return "🩺 MEDICAL ASSISTANT:\n• Please describe your symptoms clearly\n• Include duration and severity\n• Mention any other symptoms\n• For emergencies, seek immediate care";
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
+  // Simple send message function
+  // Use the actual API endpoint
+// Use the actual API endpoint
+const sendMessageMutation = useMutation({
+  mutationFn: async (message: string) => {
+    const response = await apiClient.post("/api/chatbot/message", {
+      message,
+      sessionId,
+    });
+    return response;
+  },
+  onSuccess: (response, sentMessage) => {
+    // Add user message
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      message: sentMessage,
+      isUser: true,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Add bot response
+    const botMessage: ChatMessage = {
+      id: (Date.now() + 1).toString(),
+      message: response.message,
+      isUser: false,
+      timestamp: new Date().toISOString()
+    };
+    
+    setMessages(prev => [...prev, userMessage, botMessage]);
+    setInputMessage("");
+  },
+  onError: (error) => {
+    toast({
+      title: "Error",
+      description: error.message,
+      variant: "destructive",
+    });
+  },
+});
 
   const clearChat = () => {
-    clearChatMutation.mutate();
+    setMessages([]);
+    toast({
+      title: "Success",
+      description: "Chat history cleared!",
+    });
   };
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Add welcome message
+  useEffect(() => {
+    if (messages.length === 0) {
+      const welcomeMessage: ChatMessage = {
+        id: "welcome",
+        message: "🩺 **MEDICAL ASSISTANT READY**\n\nI can help with:\n• Symptom analysis\n• First aid guidance\n• Medical information\n• Emergency recognition\n\n**Describe your symptoms clearly for best assistance**\n\n*Note: For emergencies, call emergency services immediately.*",
+        isUser: false,
+        timestamp: new Date().toISOString()
+      };
+      setMessages([welcomeMessage]);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
-      <Header title="Medical AI Assistant" subtitle="Get medical advice and symptom analysis" />
+      <Header title="Medical AI Assistant" subtitle="Get immediate symptom analysis and guidance" />
       
       <div className="p-6">
-        {/* SUCCESS BANNER */}
-        <div style={{ 
-          background: 'green', 
-          color: 'white', 
-          padding: '10px', 
-          marginBottom: '20px',
-          fontSize: '18px',
-          fontWeight: 'bold',
-          borderRadius: '8px'
-        }}>
-          ✅ MEDICAL AI ASSISTANT WORKING: {messages.length} MESSAGES
-        </div>
-
         <div className="flex items-center gap-4 mb-4">
+          <Badge className="bg-green-600 text-white">
+            Smart Medical Responses
+          </Badge>
           <Badge className="bg-blue-500 text-white">
-            Medical Consultations: {messages.length}
+            Messages: {messages.length}
           </Badge>
           <Button
             variant="outline"
             size="sm"
             onClick={clearChat}
-            disabled={clearChatMutation.isPending || messages.length === 0}
+            disabled={messages.length === 0}
             className="flex items-center gap-2"
           >
             <Trash2 className="w-4 h-4" />
@@ -170,59 +184,49 @@ export default function ChatbotPage() {
             <CardContent className="flex-1 flex flex-col p-0">
               {/* Messages Area */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {messagesLoading ? (
-                  <div className="flex justify-center items-center h-20">
-                    <div className="text-muted-foreground">Loading messages...</div>
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="flex justify-center items-center h-20">
-                    <div className="text-muted-foreground">No messages yet. Start a conversation!</div>
-                  </div>
-                ) : (
-                  messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`flex items-start space-x-2 max-w-xs lg:max-w-md`}>
-                        {!message.isUser && (
-                          <Avatar className="w-8 h-8">
-                            <AvatarFallback className="bg-primary text-primary-foreground">
-                              <Bot className="w-4 h-4" />
-                            </AvatarFallback>
-                          </Avatar>
-                        )}
-                        
-                        <div
-                          className={`rounded-lg p-3 ${
-                            message.isUser
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-green-100 border border-green-300'
-                          }`}
-                        >
-                          <p className="text-sm whitespace-pre-wrap">{message.message}</p>
-                          <div className="text-xs opacity-70 mt-1">
-                            {message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : ''}
-                          </div>
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`flex items-start space-x-2 max-w-xs lg:max-w-md`}>
+                      {!message.isUser && (
+                        <Avatar className="w-8 h-8">
+                          <AvatarFallback className="bg-green-600 text-white">
+                            <Bot className="w-4 h-4" />
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                      
+                      <div
+                        className={`rounded-lg p-3 ${
+                          message.isUser
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-green-100 border border-green-300'
+                        }`}
+                      >
+                        <p className="text-sm whitespace-pre-wrap">{message.message}</p>
+                        <div className="text-xs opacity-70 mt-1">
+                          {new Date(message.timestamp).toLocaleTimeString()}
                         </div>
-                        
-                        {message.isUser && (
-                          <Avatar className="w-8 h-8">
-                            <AvatarFallback className="bg-blue-500 text-white">
-                              <User className="w-4 h-4" />
-                            </AvatarFallback>
-                          </Avatar>
-                        )}
                       </div>
+                      
+                      {message.isUser && (
+                        <Avatar className="w-8 h-8">
+                          <AvatarFallback className="bg-blue-500 text-white">
+                            <User className="w-4 h-4" />
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
                     </div>
-                  ))
-                )}
+                  </div>
+                ))}
                 
                 {sendMessageMutation.isPending && (
                   <div className="flex justify-start">
                     <div className="flex items-start space-x-2 max-w-xs lg:max-w-md">
                       <Avatar className="w-8 h-8">
-                        <AvatarFallback className="bg-primary text-primary-foreground">
+                        <AvatarFallback className="bg-green-600 text-white">
                           <Bot className="w-4 h-4" />
                         </AvatarFallback>
                       </Avatar>
@@ -247,14 +251,14 @@ export default function ChatbotPage() {
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder="Describe your symptoms or medical concern..."
+                    placeholder="Describe your symptoms (fever, headache, pain, etc.)..."
                     disabled={sendMessageMutation.isPending}
                     className="flex-1 border-green-300 focus:border-green-500"
                   />
                   <Button 
                     onClick={sendMessage}
                     disabled={!inputMessage.trim() || sendMessageMutation.isPending}
-                    className="bg-green-500 hover:bg-green-600"
+                    className="bg-green-600 hover:bg-green-700"
                   >
                     <Send className="w-4 h-4" />
                   </Button>

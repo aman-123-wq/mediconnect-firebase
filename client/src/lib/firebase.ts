@@ -4,7 +4,7 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBp6Sm50Dd1vYBlgDm_Co2X9AH4_XbIK9w",
+  apiKey: "AIzaSyBp6Sm5QDd1vYBlgDm_Co2X9AH4_XbiK9w",
   authDomain: "mediconnect-hms.firebaseapp.com",
   projectId: "mediconnect-hms",
   storageBucket: "mediconnect-hms.firebasestorage.app",

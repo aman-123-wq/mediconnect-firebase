@@ -11,9 +11,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { UserCheck, UserX, Phone, Plus } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { apiClient } from "@/lib/api"; // ← ADD THIS IMPORT
+import { apiClient } from "@/lib/api";
 
-// ADD DOCTOR INTERFACE (since we removed the shared schema import)
 interface Doctor {
   id: string;
   userId: string;
@@ -39,10 +38,29 @@ export default function Doctors() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // UPDATE THIS QUERY
-  const { data: doctors = [], isLoading } = useQuery<Doctor[]>({
+  // FIXED QUERY - Simplified and direct
+  const { data: doctors = [], isLoading, error } = useQuery<Doctor[]>({
     queryKey: ["doctors"],
-    queryFn: () => apiClient.get("/api/doctors")
+    queryFn: async () => {
+      try {
+        const response = await apiClient.get("/api/doctors");
+        console.log("✅ API Response received:", response);
+        
+        // DIRECT RETURN - No complex formatting
+        return response;
+      } catch (err) {
+        console.error("Error fetching doctors:", err);
+        throw err;
+      }
+    },
+  });
+
+  // SIMPLIFIED DEBUG - Just check the basics
+  console.log("🩺 DOCTORS DATA:", {
+    data: doctors,
+    count: doctors.length,
+    isLoading,
+    error: error?.message
   });
 
   // Add doctor mutation
@@ -54,7 +72,7 @@ export default function Doctors() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["doctors"] }); // ← UPDATE QUERY KEY
+      queryClient.invalidateQueries({ queryKey: ["doctors"] });
       toast({
         title: "Success",
         description: "Doctor added successfully!",
@@ -78,6 +96,7 @@ export default function Doctors() {
     },
   });
 
+  // SIMPLIFIED DATA PROCESSING
   const availableDoctors = doctors.filter(d => d.available);
   const unavailableDoctors = doctors.filter(d => !d.available);
 
@@ -106,6 +125,19 @@ export default function Doctors() {
       <Header title="Doctors" subtitle="Manage doctor profiles and availability" />
       
       <div className="p-6">
+        {/* SIMPLIFIED DEBUG INFO */}
+        {doctors.length > 0 && (
+          <Card className="mb-6 bg-green-50 border-green-200">
+            <CardContent className="p-4">
+              <div className="text-sm text-green-800">
+                <strong>✅ Data Loaded Successfully!</strong> 
+                <div>Found {doctors.length} doctors in database</div>
+                <div>Displaying {Object.keys(doctorsByDepartment).length} departments</div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="flex justify-between items-center mb-6">
           <div className="flex space-x-2">
             <Badge className="bg-green-100 text-green-800">
@@ -150,7 +182,8 @@ export default function Doctors() {
               </Card>
             ))}
           </div>
-        ) : (
+        ) : doctors.length > 0 ? (
+          // MAIN CONTENT - Only show if we have doctors
           <div className="space-y-8">
             {Object.entries(doctorsByDepartment).map(([department, departmentDoctors]) => (
               <Card key={department}>
@@ -168,7 +201,6 @@ export default function Doctors() {
                       <div 
                         key={doctor.id}
                         className="flex items-center space-x-3 p-4 border border-border rounded-lg hover:bg-accent transition-colors"
-                        data-testid={`doctor-${doctor.id}`}
                       >
                         <Avatar className="w-12 h-12">
                           <AvatarFallback>
@@ -213,9 +245,8 @@ export default function Doctors() {
               </Card>
             ))}
           </div>
-        )}
-
-        {doctors.length === 0 && !isLoading && (
+        ) : (
+          // EMPTY STATE - Only show if no doctors and not loading
           <Card>
             <CardContent className="p-12 text-center">
               <UserCheck className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
@@ -235,7 +266,7 @@ export default function Doctors() {
         )}
       </div>
 
-      {/* Add Doctor Modal */}
+      {/* Add Doctor Modal - Keep as is */}
       <Dialog open={isAddDoctorOpen} onOpenChange={setIsAddDoctorOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>

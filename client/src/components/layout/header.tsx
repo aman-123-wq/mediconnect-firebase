@@ -1,6 +1,7 @@
 import { Bell } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { auth } from '@/lib/firebase'; // ADD THIS IMPORT
 
 interface HeaderProps {
   title: string;
@@ -9,6 +10,30 @@ interface HeaderProps {
 }
 
 export default function Header({ title, subtitle, unreadAlerts = 0 }: HeaderProps) {
+  const user = auth.currentUser; // GET CURRENT USER
+  
+  // Generate user display name from email or use generic
+  const getUserDisplayName = () => {
+    if (user?.email) {
+      // Convert email to display name: "test@mediconnect.com" → "Dr. Test"
+      const namePart = user.email.split('@')[0];
+      const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+      return `Dr. ${formattedName}`;
+    }
+    return 'Hospital Staff';
+  };
+
+  const getUserRole = () => {
+    return 'Medical Professional';
+  };
+
+  const getInitials = () => {
+    if (user?.email) {
+      return user.email.substring(0, 2).toUpperCase();
+    }
+    return 'HS';
+  };
+
   return (
     <header className="bg-card border-b border-border p-6">
       <div className="flex justify-between items-center">
@@ -29,15 +54,15 @@ export default function Header({ title, subtitle, unreadAlerts = 0 }: HeaderProp
           </Button>
           <div className="flex items-center space-x-3">
             <Avatar className="w-10 h-10">
-              <AvatarImage src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=64&h=64" />
-              <AvatarFallback>DJ</AvatarFallback>
+              {/* REMOVED THE STATIC UNSPLASH IMAGE */}
+              <AvatarFallback>{getInitials()}</AvatarFallback>
             </Avatar>
             <div>
               <p className="text-sm font-medium text-foreground" data-testid="text-user-name">
-                Dr. Sarah Johnson
+                {getUserDisplayName()}
               </p>
               <p className="text-xs text-muted-foreground" data-testid="text-user-role">
-                Hospital Administrator
+                {getUserRole()}
               </p>
             </div>
           </div>
