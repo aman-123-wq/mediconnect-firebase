@@ -1,9 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { apiRequest } from "@/lib/queryClient";
+import { apiClient } from "@/lib/api"; // ← CHANGE TO apiClient
 import { toast } from "@/hooks/use-toast";
-import type { Alert } from "@shared/schema";
+
+interface Alert {
+  id: string;
+  title: string;
+  description?: string;
+  type: 'critical' | 'warning' | 'info';
+  isRead: boolean;
+  createdAt: string;
+}
 
 interface RecentAlertsProps {
   alerts?: Alert[];
@@ -13,18 +21,20 @@ interface RecentAlertsProps {
 export default function RecentAlerts({ alerts, loading }: RecentAlertsProps) {
   const queryClient = useQueryClient();
 
+  // FIXED: Use apiClient instead of apiRequest
   const markAsReadMutation = useMutation({
     mutationFn: async (alertId: string) => {
-      await apiRequest("PATCH", `/api/alerts/${alertId}/read`);
+      return apiClient.put(`/api/alerts/${alertId}/read`, {}); // ← USE apiClient
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/alerts/unread"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] }); // ← FIXED QUERY KEY
+      queryClient.invalidateQueries({ queryKey: ["alerts/unread"] }); // ← FIXED QUERY KEY
       toast({ title: "Alert marked as read" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ 
         title: "Error", 
-        description: error.message,
+        description: error.message || "Failed to mark alert as read",
         variant: "destructive" 
       });
     },

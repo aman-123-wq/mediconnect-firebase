@@ -7,19 +7,29 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Heart, MapPin, Phone } from "lucide-react";
 import { Link } from "wouter";
 import type { OrganDonor } from "@shared/schema";
+import { apiClient } from "@/lib/api";
 
 export default function DonorRegistry() {
   const [bloodTypeFilter, setBloodTypeFilter] = useState<string>("all");
   const [organTypeFilter, setOrganTypeFilter] = useState<string>("all");
 
   const { data: donors = [], isLoading } = useQuery<OrganDonor[]>({
-    queryKey: ["/api/organ-donors", { bloodType: bloodTypeFilter === "all" ? undefined : bloodTypeFilter, organType: organTypeFilter === "all" ? undefined : organTypeFilter }],
-    queryFn: ({ queryKey }) => {
-      const [url, params] = queryKey;
+    queryKey: ["donors", { bloodType: bloodTypeFilter === "all" ? undefined : bloodTypeFilter, organType: organTypeFilter === "all" ? undefined : organTypeFilter }],
+    queryFn: async ({ queryKey }) => {
+      const [_, params] = queryKey;
       const searchParams = new URLSearchParams();
-      if ((params as any).bloodType) searchParams.set('bloodType', (params as any).bloodType);
-      if ((params as any).organType) searchParams.set('organType', (params as any).organType);
-      return fetch(`${url}?${searchParams}`).then(res => res.json());
+      
+      if ((params as any).bloodType && (params as any).bloodType !== "all") {
+        searchParams.set('bloodType', (params as any).bloodType);
+      }
+      if ((params as any).organType && (params as any).organType !== "all") {
+        searchParams.set('organType', (params as any).organType);
+      }
+      
+      const queryString = searchParams.toString();
+      const url = queryString ? `/api/donors?${queryString}` : `/api/donors`;
+      
+      return apiClient.get(url);
     },
   });
 

@@ -4,12 +4,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiClient } from "@/lib/api"; // ← CHANGE TO apiClient
 import { useState } from "react";
-import type { Bed, Ward } from "@shared/schema";
 
-interface BedWithWard extends Bed {
-  ward?: Ward; // Make ward optional
+interface Bed {
+  id: string;
+  bedNumber: number;
+  status: 'available' | 'occupied' | 'maintenance' | 'cleaning';
+  patientId?: string;
+  patientName?: string;
+  condition?: string;
+  department: string;
+  lastUpdated: string;
+  notes?: string;
 }
 
 const statusColors = {
@@ -20,19 +27,22 @@ const statusColors = {
 };
 
 export default function BedAvailability() {
-  const [selectedBed, setSelectedBed] = useState<BedWithWard | null>(null);
+  const [selectedBed, setSelectedBed] = useState<Bed | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: beds = [], isLoading } = useQuery<BedWithWard[]>({
-    queryKey: ["/api/beds"],
+  // FIXED: Use correct query key and apiClient
+  const { data: beds = [], isLoading } = useQuery<Bed[]>({
+    queryKey: ["beds"], // ← CHANGE FROM ["/api/beds"]
+    queryFn: () => apiClient.get("/api/beds") // ← USE apiClient
   });
 
+  // FIXED: Use apiClient instead of apiRequest
   const updateBedStatusMutation = useMutation({
-    mutationFn: async ({ bedId, status, patientId }: { bedId: string; status: string; patientId?: string }) => {
-      await apiRequest("PUT", `/api/beds/${bedId}`, { status, patientId });
+    mutationFn: async ({ bedId, status }: { bedId: string; status: string }) => {
+      return apiClient.put(`/api/beds/${bedId}`, { status }); // ← USE apiClient.put
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/beds"] });
+      queryClient.invalidateQueries({ queryKey: ["beds"] }); // ← FIXED QUERY KEY
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({ title: "Success", description: "Bed status updated successfully" });
       setSelectedBed(null);
@@ -46,17 +56,16 @@ export default function BedAvailability() {
     },
   });
 
-  // FIXED: Safe grouping with fallback for missing ward data
-  const bedsByWard = beds.reduce((acc, bed) => {
-    // Use safe access with fallback to department or default ward name
-    const wardName = bed.ward?.name || bed.department || 'General Ward';
+  // FIXED: Simplified grouping by department
+  const bedsByDepartment = beds.reduce((acc, bed) => {
+    const department = bed.department || 'General';
     
-    if (!acc[wardName]) {
-      acc[wardName] = [];
+    if (!acc[department]) {
+      acc[department] = [];
     }
-    acc[wardName].push(bed);
+    acc[department].push(bed);
     return acc;
-  }, {} as Record<string, BedWithWard[]>);
+  }, {} as Record<string, Bed[]>);
 
   return (
     <>
@@ -99,22 +108,22 @@ export default function BedAvailability() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Object.entries(bedsByWard).map(([wardName, wardBeds]) => (
-                <div key={wardName} className="border border-border rounded-lg p-4">
-                  <h4 className="font-medium text-foreground mb-3">{wardName}</h4>
+              {Object.entries(bedsByDepartment).map(([department, departmentBeds]) => (
+                <div key={department} className="border border-border rounded-lg p-4">
+                  <h4 className="font-medium text-foreground mb-3">{department}</h4>
                   <div className="grid grid-cols-5 gap-2">
-                    {wardBeds.slice(0, 5).map((bed) => (
+                    {departmentBeds.slice(0, 5).map((bed) => (
                       <div key={bed.id} className="relative">
                         <div
                           className={`
                             w-10 h-6 rounded-sm flex items-center justify-center cursor-pointer transition-colors
-                            ${statusColors[bed.status as keyof typeof statusColors]}
+                            ${statusColors[bed.status]}
                           `}
                           onClick={() => setSelectedBed(bed)}
                           data-testid={`bed-${bed.bedNumber}`}
                         >
                           <span className="text-xs font-medium">
-                            {typeof bed.bedNumber === 'number' ? bed.bedNumber : bed.bedNumber?.replace(/^[A-Z]/, '')}
+                            {bed.bedNumber}
                           </span>
                         </div>
                       </div>
@@ -122,15 +131,15 @@ export default function BedAvailability() {
                   </div>
                   <div className="mt-3 text-sm text-muted-foreground">
                     <span className="text-green-600 font-medium">
-                      {wardBeds.filter(b => b.status === 'available').length}
+                      {departmentBeds.filter(b => b.status === 'available').length}
                     </span> available, 
                     <span className="text-red-600 font-medium ml-1">
-                      {wardBeds.filter(b => b.status === 'occupied').length}
+                      {departmentBeds.filter(b => b.status === 'occupied').length}
                     </span> occupied
-                    {wardBeds.filter(b => b.status === 'cleaning').length > 0 && (
+                    {departmentBeds.filter(b => b.status === 'cleaning').length > 0 && (
                       <>
                         , <span className="text-blue-600 font-medium ml-1">
-                          {wardBeds.filter(b => b.status === 'cleaning').length}
+                          {departmentBeds.filter(b => b.status === 'cleaning').length}
                         </span> cleaning
                       </>
                     )}
@@ -148,8 +157,7 @@ export default function BedAvailability() {
           <Card className="w-full max-w-md mx-4">
             <CardHeader>
               <CardTitle>
-                {/* FIXED: Safe access for ward name */}
-                {selectedBed.ward?.name || selectedBed.department || 'General Ward'} - Bed {selectedBed.bedNumber}
+                {selectedBed.department} - Bed {selectedBed.bedNumber}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">

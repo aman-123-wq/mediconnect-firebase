@@ -4,11 +4,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { User, Clock } from "lucide-react";
 import { Link } from "wouter";
-import type { Appointment, Patient, Doctor } from "@shared/schema";
+import { apiClient } from "@/lib/api"; // ← ADD apiClient IMPORT
 
-interface AppointmentWithDetails extends Appointment {
-  patient: Patient;
-  doctor: Doctor;
+interface Appointment {
+  id: string;
+  appointmentDate: string;
+  status: 'scheduled' | 'confirmed' | 'waiting' | 'completed' | 'cancelled';
+  patientId: string;
+  doctorId: string;
+  patient: {
+    firstName: string;
+    lastName: string;
+  };
+  doctor: {
+    userId: string;
+    department: string;
+    specialization: string;
+  };
 }
 
 const statusColors = {
@@ -20,8 +32,10 @@ const statusColors = {
 };
 
 export default function TodaysAppointments() {
-  const { data: appointments = [], isLoading } = useQuery<AppointmentWithDetails[]>({
-    queryKey: ["/api/appointments"],
+  // FIXED: Use apiClient and correct query key
+  const { data: appointments = [], isLoading } = useQuery<Appointment[]>({
+    queryKey: ["appointments"], // ← CHANGE FROM ["/api/appointments"]
+    queryFn: () => apiClient.get("/api/appointments") // ← USE apiClient
   });
 
   // Filter today's appointments
@@ -108,7 +122,7 @@ export default function TodaysAppointments() {
                           })}
                         </span>
                       </div>
-                      <Badge className={statusColors[appointment.status as keyof typeof statusColors]}>
+                      <Badge className={statusColors[appointment.status]}>
                         {appointment.status}
                       </Badge>
                     </div>
