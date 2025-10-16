@@ -1278,7 +1278,7 @@ app.post('/api/chatbot/message', async (req, res) => {
       message: reply
     });
 
-  } catch (error) {
+
     const errorMessages = [
       "I'm experiencing technical difficulties. For comprehensive medical information and personal health advice, please consult with qualified healthcare professionals.",
       "Temporary connection issue. For detailed medical guidance and personalized health information, please contact our medical team directly.",
