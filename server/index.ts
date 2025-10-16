@@ -1290,7 +1290,7 @@ app.post('/api/chatbot/message', async (req, res) => {
       error: randomError
     });
   
-});
+
 
 // Mock message history endpoint - ADD THIS MISSING ROUTE
 app.get('/api/chatbot/messages', async (req, res) => {
