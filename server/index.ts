@@ -1123,239 +1123,6 @@ app.post('/api/chatbot/message', async (req, res) => {
         ]
       },
 
-      // ASTHMA - NEW
-      'asthma': {
-        'whatIs': [
-          `🌬️ **ASTHMA - Chronic Respiratory Condition**
-
-Asthma is a chronic inflammatory disease of the airways causing breathing difficulties, wheezing, and coughing. It's characterized by reversible airflow obstruction and bronchospasm.`
-        ],
-        'symptoms': [
-          `😮‍💨 **ASTHMA SYMPTOMS**
-
-• Wheezing (whistling sound when breathing)
-• Shortness of breath
-• Chest tightness
-• Coughing (often worse at night)
-• Difficulty breathing during physical activity`
-        ],
-        'treatment': [
-          `💊 **ASTHMA TREATMENT**
-
-• Quick-relief inhalers (bronchodilators)
-• Long-term control medications
-• Inhaled corticosteroids
-• Avoiding triggers (allergens, smoke)
-• Asthma action plan
-• Regular monitoring`
-        ],
-        'prevention': [
-          `🛡️ **ASTHMA PREVENTION**
-
-• Identify and avoid triggers
-• Use medications as prescribed
-• Get annual flu shots
-• Maintain clean indoor air
-• Manage allergies
-• Regular check-ups with your doctor`
-        ]
-      },
-
-      // ARTHRITIS - NEW
-      'arthritis': {
-        'whatIs': [
-          `🦵 **ARTHRITIS - Joint Inflammation**
-
-Arthritis is inflammation of one or more joints causing pain and stiffness. There are over 100 types, with osteoarthritis and rheumatoid arthritis being most common.`
-        ],
-        'symptoms': [
-          `😣 **ARTHRITIS SYMPTOMS**
-
-• Joint pain and tenderness
-• Stiffness (especially morning stiffness)
-• Swelling and redness
-• Decreased range of motion
-• Warmth around joints
-• Fatigue and general discomfort`
-        ],
-        'treatment': [
-          `💊 **ARTHRITIS TREATMENT**
-
-• Pain relievers and anti-inflammatory drugs
-• Physical therapy and exercise
-• Weight management
-• Hot and cold therapies
-• Assistive devices
-• In severe cases, joint replacement surgery`
-        ],
-        'prevention': [
-          `🛡️ **ARTHRITIS PREVENTION**
-
-• Maintain healthy weight
-• Regular exercise
-• Protect joints from injury
-• Eat anti-inflammatory diet
-• Practice good posture
-• Get regular check-ups`
-        ]
-      },
-
-      // DEPRESSION - NEW
-      'depression': {
-        'whatIs': [
-          `🧠 **DEPRESSION - Mental Health Condition**
-
-Depression is a common but serious mood disorder that causes persistent feelings of sadness and loss of interest. It affects how you feel, think, and handle daily activities.`
-        ],
-        'symptoms': [
-          `😔 **DEPRESSION SYMPTOMS**
-
-• Persistent sad, anxious, or "empty" mood
-• Loss of interest in activities once enjoyed
-• Changes in appetite and weight
-• Sleep disturbances (insomnia or oversleeping)
-• Fatigue and loss of energy
-• Difficulty concentrating and making decisions`
-        ],
-        'treatment': [
-          `💊 **DEPRESSION TREATMENT**
-
-• Psychotherapy (talk therapy)
-• Antidepressant medications
-• Lifestyle changes (exercise, diet, sleep)
-• Support groups
-• In severe cases, electroconvulsive therapy
-• Combination of therapy and medication`
-        ],
-        'prevention': [
-          `🛡️ **DEPRESSION PREVENTION**
-
-• Build strong social support
-• Manage stress effectively
-• Maintain regular sleep schedule
-• Exercise regularly
-• Seek help early for symptoms
-• Avoid alcohol and recreational drugs`
-        ]
-      },
-
-      // SKIN CONDITIONS - NEW
-      'skin': {
-        'whatIs': [
-          `🌟 **SKIN CONDITIONS**
-
-Various skin conditions including eczema, psoriasis, acne, rashes, and allergic reactions that affect the skin's appearance and comfort.`
-        ],
-        'symptoms': [
-          `🔍 **SKIN SYMPTOMS**
-
-• Rashes, redness, or inflammation
-• Itching, burning, or stinging
-• Dryness, flaking, or scaling
-• Bumps, blisters, or sores
-• Changes in skin color or texture
-• Pain or tenderness`
-        ],
-        'treatment': [
-          `💊 **SKIN TREATMENT**
-
-• Topical creams and ointments
-• Oral medications
-• Light therapy
-• Lifestyle modifications
-• Avoiding triggers and irritants
-• Proper skincare routine`
-        ],
-        'prevention': [
-          `🛡️ **SKIN PREVENTION**
-
-• Practice good hygiene
-• Moisturize regularly
-• Use sun protection
-• Avoid known irritants
-• Manage stress
-• Maintain healthy diet`
-        ]
-      },
-
-      // DIGESTIVE ISSUES - NEW
-      'digestive': {
-        'whatIs': [
-          `🫀 **DIGESTIVE ISSUES**
-
-Conditions affecting the gastrointestinal tract including IBS, GERD, food poisoning, and inflammatory bowel diseases.`
-        ],
-        'symptoms': [
-          `🤢 **DIGESTIVE SYMPTOMS**
-
-• Abdominal pain or cramping
-• Bloating and gas
-• Diarrhea or constipation
-• Nausea and vomiting
-• Heartburn or acid reflux
-• Changes in bowel habits`
-        ],
-        'treatment': [
-          `💊 **DIGESTIVE TREATMENT**
-
-• Dietary modifications
-• Medications (antacids, anti-diarrheals)
-• Probiotics and supplements
-• Stress management
-• Lifestyle changes
-• Hydration and fiber management`
-        ],
-        'prevention': [
-          `🛡️ **DIGESTIVE PREVENTION**
-
-• Eat balanced diet with fiber
-• Stay hydrated
-• Exercise regularly
-• Manage stress
-• Practice food safety
-• Avoid trigger foods`
-        ]
-      },
-
-      // INFECTIONS - NEW
-      'infection': {
-        'whatIs': [
-          `🦠 **INFECTIONS**
-
-Infections are caused by pathogens like bacteria, viruses, fungi, or parasites invading the body and multiplying.`
-        ],
-        'symptoms': [
-          `🤒 **INFECTION SYMPTOMS**
-
-• Fever and chills
-• Fatigue and weakness
-• Pain, swelling, or redness
-• Cough, sore throat, or runny nose
-• Digestive issues (nausea, diarrhea)
-• General malaise and body aches`
-        ],
-        'treatment': [
-          `💊 **INFECTION TREATMENT**
-
-• Antibiotics (for bacterial infections)
-• Antivirals (for viral infections)
-• Antifungals (for fungal infections)
-• Supportive care (rest, hydration)
-• Symptom management
-• Medical monitoring`
-        ],
-        'prevention': [
-          `🛡️ **INFECTION PREVENTION**
-
-• Practice good hygiene
-• Get recommended vaccinations
-• Handle food safely
-• Avoid close contact with sick people
-• Use antibiotics appropriately
-• Maintain healthy lifestyle`
-        ]
-      },
-
       // Default responses for unknown queries
       'default': {
         'general': [
@@ -1381,18 +1148,15 @@ Infections are caused by pathogens like bacteria, viruses, fungi, or parasites i
     // Disease detection with partial matching
     let detectedDisease = null;
     const diseaseKeywords = [
-  'heart disease', 'heart attack', 'cardiac',
-  'diabetes', 'blood sugar', 
-  'stroke', 'brain attack', 'cerebrovascular',
-  'cancer', 'tumor', 'malignant',
-  'asthma', 'breathing problem', 'wheezing', 'shortness of breath',
-  'hypertension', 'high blood pressure',
-  'arthritis', 'joint pain', 'rheumatoid', 'osteoarthritis',
-  'depression', 'mental health', 'anxiety', 'panic', 'stress',
-  'skin rash', 'eczema', 'psoriasis', 'acne', 'hives', 'dermatitis',
-  'stomach pain', 'abdominal pain', 'diarrhea', 'constipation', 'ibs', 'gerd',
-  'infection', 'fever', 'flu', 'covid', 'uti', 'sinus infection'
-];
+      'heart disease', 'heart attack', 'cardiac',
+      'diabetes', 'blood sugar', 
+      'stroke', 'brain attack', 'cerebrovascular',
+      'cancer', 'tumor', 'malignant',
+      'asthma', 'breathing problem',
+      'hypertension', 'high blood pressure',
+      'arthritis', 'joint pain',
+      'depression', 'mental health'
+    ];
 
     for (const disease of diseaseKeywords) {
       if (lowerMessage.includes(disease)) {
@@ -1402,37 +1166,15 @@ Infections are caused by pathogens like bacteria, viruses, fungi, or parasites i
     }
 
     // Map to proper keys
-   const diseaseMap = {
-  'heart': 'heart disease',
-  'cardiac': 'heart disease',
-  'diabetes': 'diabetes',
-  'stroke': 'stroke',
-  'cancer': 'cancer',
-  'tumor': 'cancer',
-  'malignant': 'cancer',
-  'asthma': 'asthma',
-  'breathing': 'asthma',
-  'wheezing': 'asthma',
-  'arthritis': 'arthritis',
-  'joint': 'arthritis',
-  'rheumatoid': 'arthritis',
-  'depression': 'depression',
-  'anxiety': 'depression',
-  'mental': 'depression',
-  'rash': 'skin',
-  'eczema': 'skin',
-  'psoriasis': 'skin',
-  'acne': 'skin',
-  'stomach': 'digestive',
-  'abdominal': 'digestive',
-  'diarrhea': 'digestive',
-  'constipation': 'digestive',
-  'ibs': 'digestive',
-  'infection': 'infection',
-  'fever': 'infection',
-  'flu': 'infection',
-  'covid': 'infection'
-};
+    const diseaseMap = {
+      'heart': 'heart disease',
+      'cardiac': 'heart disease',
+      'diabetes': 'diabetes',
+      'stroke': 'stroke',
+      'cancer': 'cancer',
+      'tumor': 'cancer',
+      'malignant': 'cancer'
+    };
 
     if (diseaseMap[detectedDisease]) {
       detectedDisease = diseaseMap[detectedDisease];
@@ -1510,4 +1252,4 @@ app.get('/', (req, res) => {
 // ADD THE MISSING SERVER START
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-}); 
+});
