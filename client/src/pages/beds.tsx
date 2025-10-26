@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Bed, Plus, RefreshCw, Users, AlertTriangle, CheckCircle, Wrench, Sparkles } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
-import { apiClient } from "@/lib/api"; // ← ADD THIS IMPORT
+import { apiClient } from "@/lib/api";
 
 interface Bed {
   id: string;
@@ -51,7 +51,7 @@ export default function Beds() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch beds from Firebase - ← UPDATE THIS QUERY
+  // Fetch beds from Firebase
   const { data: beds = [], isLoading: bedsLoading, refetch: refetchBeds } = useQuery<Bed[]>({
     queryKey: ["beds"],
     queryFn: () => apiClient.get("/api/beds")
@@ -60,37 +60,66 @@ export default function Beds() {
   // Calculate stats from beds data (remove separate stats API call)
   const stats = calculateBedStats(beds);
 
-  // Update bed status mutation - FIXED: Use POST to /api/beds with bed ID in body
- // UPDATE THIS MUTATION - use apiClient instead of apiRequest
-const updateBedMutation = useMutation({
-  mutationFn: async ({ bedId, status, patientName, condition }: { 
-    bedId: string; 
-    status: string; 
-    patientName?: string; 
-    condition?: string; 
-  }) => {
-    return apiClient.put(`/api/beds/${bedId}`, {  // ← CHANGE TO apiClient.put
-      status,
-      patientName: status === 'available' ? '' : (patientName || 'New Patient'),
-      condition: status === 'available' ? '' : (condition || 'Admitted'),
-      lastUpdated: new Date().toISOString()
-    });
-  },
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ["beds"] });
-    toast({
-      title: "Success",
-      description: "Bed status updated successfully!",
-    });
-  },
-  onError: (error: any) => {
-    toast({
-      title: "Error",
-      description: error.message || "Failed to update bed status",
-      variant: "destructive",
-    });
-  },
-});
+  // Update bed status mutation
+  const updateBedMutation = useMutation({
+    mutationFn: async ({ bedId, status, patientName, condition }: { 
+      bedId: string; 
+      status: string; 
+      patientName?: string; 
+      condition?: string; 
+    }) => {
+      return apiClient.put(`/api/beds/${bedId}`, {
+        status,
+        patientName: status === 'available' ? '' : (patientName || 'New Patient'),
+        condition: status === 'available' ? '' : (condition || 'Admitted'),
+        lastUpdated: new Date().toISOString()
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["beds"] });
+      toast({
+        title: "Success",
+        description: "Bed status updated successfully!",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update bed status",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Add new bed mutation
+  const addBedMutation = useMutation({
+    mutationFn: async () => {
+      // Find the next available bed number
+      const existingBedNumbers = beds.map(bed => bed.bedNumber);
+      const nextBedNumber = existingBedNumbers.length > 0 ? Math.max(...existingBedNumbers) + 1 : 1;
+      
+      return apiClient.post("/api/beds", {
+        bedNumber: nextBedNumber,
+        status: 'available',
+        department: 'General',
+        lastUpdated: new Date().toISOString()
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["beds"] });
+      toast({
+        title: "Success",
+        description: "New bed added successfully!",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add new bed",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Get unique departments from beds data
   const departments = ['All', ...Array.from(new Set(beds.map(bed => bed.department)))].filter(Boolean);
@@ -124,6 +153,10 @@ const updateBedMutation = useMutation({
       bedId, 
       status: newStatus
     });
+  };
+
+  const handleAddBed = () => {
+    addBedMutation.mutate();
   };
 
   if (bedsLoading) {
@@ -201,20 +234,42 @@ const updateBedMutation = useMutation({
           </Card>
         </div>
 
-        {/* Department Filter */}
+        {/* Action Bar with Department Filter and Add Bed Button */}
         <Card>
           <CardContent className="p-4">
-            <div className="flex flex-wrap gap-2">
-              {departments.map(dept => (
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex flex-wrap gap-2">
+                {departments.map(dept => (
+                  <Button
+                    key={dept}
+                    variant={selectedDepartment === dept ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedDepartment(dept)}
+                  >
+                    {dept}
+                  </Button>
+                ))}
+              </div>
+              
+              <div className="flex gap-2">
                 <Button
-                  key={dept}
-                  variant={selectedDepartment === dept ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedDepartment(dept)}
+                  onClick={handleAddBed}
+                  disabled={addBedMutation.isPending}
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
                 >
-                  {dept}
+                  <Plus className="w-4 h-4" />
+                  Add Bed
                 </Button>
-              ))}
+                
+                <Button
+                  onClick={() => refetchBeds()}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Refresh
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -322,21 +377,17 @@ const updateBedMutation = useMutation({
                   : `No beds found in the ${selectedDepartment} department.`
                 }
               </p>
+              <Button 
+                onClick={handleAddBed} 
+                className="mt-4 flex items-center gap-2"
+                disabled={addBedMutation.isPending}
+              >
+                <Plus className="w-4 h-4" />
+                Add First Bed
+              </Button>
             </CardContent>
           </Card>
         )}
-
-        {/* Refresh Button */}
-        <div className="flex justify-center">
-          <Button
-            onClick={() => refetchBeds()}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh Beds
-          </Button>
-        </div>
       </div>
     </div>
   );
