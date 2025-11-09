@@ -1,7 +1,9 @@
-import { Bell } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Bell, LogOut } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { auth } from '@/lib/firebase'; // ADD THIS IMPORT
+import { auth } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
+import { toast } from "@/hooks/use-toast";
 
 interface HeaderProps {
   title: string;
@@ -10,12 +12,34 @@ interface HeaderProps {
 }
 
 export default function Header({ title, subtitle, unreadAlerts = 0 }: HeaderProps) {
-  const user = auth.currentUser; // GET CURRENT USER
-  
+  const user = auth.currentUser;
+
+  // SIMPLE LOGOUT - NO ROUTER NEEDED
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      
+      toast({
+        title: "Logged out successfully",
+        description: "You have been logged out of MediConnect",
+      });
+      
+      // Simple page reload - will redirect to login automatically
+      window.location.href = '/'; // or your login page URL
+      
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast({
+        title: "Logout failed",
+        description: "There was an error logging out",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Generate user display name from email or use generic
   const getUserDisplayName = () => {
     if (user?.email) {
-      // Convert email to display name: "test@mediconnect.com" → "Dr. Test"
       const namePart = user.email.split('@')[0];
       const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
       return `Dr. ${formattedName}`;
@@ -52,9 +76,20 @@ export default function Header({ title, subtitle, unreadAlerts = 0 }: HeaderProp
               </span>
             )}
           </Button>
+          
+          {/* LOGOUT BUTTON */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleLogout}
+            className="text-muted-foreground hover:text-foreground"
+            title="Logout"
+          >
+            <LogOut className="w-5 h-5" />
+          </Button>
+          
           <div className="flex items-center space-x-3">
             <Avatar className="w-10 h-10">
-              {/* REMOVED THE STATIC UNSPLASH IMAGE */}
               <AvatarFallback>{getInitials()}</AvatarFallback>
             </Avatar>
             <div>

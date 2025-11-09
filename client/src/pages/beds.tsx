@@ -4,7 +4,7 @@ import Header from "@/components/layout/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bed, Plus, RefreshCw, Users, AlertTriangle, CheckCircle, Wrench, Sparkles } from "lucide-react";
+import { Bed, Plus, RefreshCw, Users, AlertTriangle, CheckCircle, Wrench, Sparkles, Trash2 } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api";
@@ -121,6 +121,27 @@ export default function Beds() {
     },
   });
 
+  // DELETE bed mutation - NEW FUNCTIONALITY
+  const deleteBedMutation = useMutation({
+    mutationFn: async (bedId: string) => {
+      return apiClient.delete(`/api/beds/${bedId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["beds"] });
+      toast({
+        title: "Success",
+        description: "Bed deleted successfully!",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete bed",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Get unique departments from beds data
   const departments = ['All', ...Array.from(new Set(beds.map(bed => bed.department)))].filter(Boolean);
 
@@ -157,6 +178,13 @@ export default function Beds() {
 
   const handleAddBed = () => {
     addBedMutation.mutate();
+  };
+
+  // NEW: Handle bed deletion with confirmation
+  const handleDeleteBed = (bedId: string, bedNumber: number) => {
+    if (window.confirm(`Are you sure you want to delete Bed ${bedNumber}? This action cannot be undone.`)) {
+      deleteBedMutation.mutate(bedId);
+    }
   };
 
   if (bedsLoading) {
@@ -289,18 +317,32 @@ export default function Beds() {
                     <CardTitle className="text-lg">Bed {bed.bedNumber}</CardTitle>
                     <p className="text-sm text-muted-foreground">{bed.department}</p>
                   </div>
-                  <Badge 
-                    variant="secondary" 
-                    className={`flex items-center gap-1 ${
-                      bed.status === 'available' ? 'bg-green-100 text-green-800' :
-                      bed.status === 'occupied' ? 'bg-red-100 text-red-800' :
-                      bed.status === 'maintenance' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-blue-100 text-blue-800'
-                    }`}
-                  >
-                    {getStatusIcon(bed.status)}
-                    {getStatusText(bed.status)}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge 
+                      variant="secondary" 
+                      className={`flex items-center gap-1 ${
+                        bed.status === 'available' ? 'bg-green-100 text-green-800' :
+                        bed.status === 'occupied' ? 'bg-red-100 text-red-800' :
+                        bed.status === 'maintenance' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}
+                    >
+                      {getStatusIcon(bed.status)}
+                      {getStatusText(bed.status)}
+                    </Badge>
+                    
+                    {/* DELETE BUTTON - NEW */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteBed(bed.id, bed.bedNumber)}
+                      disabled={deleteBedMutation.isPending}
+                      className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                      title="Delete Bed"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               
